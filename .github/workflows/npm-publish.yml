@@ -1,0 +1,77 @@
+name: Publish to npm
+
+# Publishes n8n-nodes-webhookrelay to the npm registry using npm Trusted
+# Publishing (OIDC) — no long-lived NPM_TOKEN and no 2FA/OTP prompts. The
+# package version is pinned to the release tag so the npm version always
+# matches the git tag.
+#
+# Configure the trusted publisher once at:
+#   npmjs.com -> n8n-nodes-webhookrelay -> Settings -> Trusted Publisher
+# with:
+#   Publisher:          GitHub Actions
+#   Organization/user:  webhookrelay
+#   Repository:         n8n-nodes-webhookrelay
+#   Workflow filename:  npm-publish.yml
+#   Environment name:   npm-publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 0.1.1 (defaults to latest git tag)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish n8n-nodes-webhookrelay
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write # required for OIDC trusted publishing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # tags needed for the git-describe fallback
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm (trusted publishing requires npm >= 11.5.1)
+        run: npm install -g npm@latest
+
+      # --ignore-scripts skips the native isolated-vm build from the
+      # n8n-workflow devDependency; the build only needs tsc + gulp.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Resolve version
+        id: v
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          [ -z "$TAG" ] && TAG="${{ github.event.inputs.version }}"
+          [ -z "$TAG" ] && TAG="$(git describe --tags --abbrev=0)"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Pin package version
+        run: npm version "${{ steps.v.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Publish
+        # Provenance is enabled: the repository is public and this job runs in
+        # GitHub Actions with OIDC (id-token: write), so npm attaches a verified
+        # provenance attestation to each release.
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+        run: npm publish --access public

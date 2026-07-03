@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      # --ignore-scripts skips the native isolated-vm build pulled in by the
+      # n8n-workflow devDependency — the nodes only need its type declarations,
+      # and lint/build (tsc + gulp) require no native modules.
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run build
