@@ -1,19 +1,13 @@
 {
-  "name": "Webhook Relay — durable + throttled webhook",
+  "name": "Webhook Relay — receive webhooks (no public IP)",
   "nodes": [
     {
       "parameters": {
         "bucket": "n8n",
-        "httpMethod": "POST",
         "authentication": "token",
+        "token": "REPLACE_WITH_A_SHARED_SECRET",
         "responseStatusCode": 200,
-        "responseBody": "{\"ok\":true}",
-        "durableDelivery": true,
-        "durabilitySchedule": "long",
-        "throttleEnabled": true,
-        "throttleMode": "rate",
-        "throttleRate": 10,
-        "throttleInterval": "minute"
+        "responseBody": "{\"ok\":true}"
       },
       "id": "b1a1a1a1-1111-4111-8111-111111111111",
       "name": "Webhook Relay Trigger",

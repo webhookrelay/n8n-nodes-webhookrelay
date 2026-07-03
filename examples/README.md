@@ -6,10 +6,10 @@ activating.
 
 | File | What it shows |
 | --- | --- |
-| [`webhook-durable-throttled.json`](webhook-durable-throttled.json) | HTTP webhook with **token auth**, a `200 {"ok":true}` response, **durable delivery** (long retry) and **throttling** (10/min), feeding an Edit Fields node. |
-| [`email-to-workflow.json`](email-to-workflow.json) | Inbound **email** trigger restricted to a sender, with durable delivery, extracting from/subject/text. |
+| [`webhook-to-workflow.json`](webhook-to-workflow.json) | HTTP webhook with **token auth** and a `200 {"ok":true}` response, feeding an Edit Fields node. |
+| [`email-to-workflow.json`](email-to-workflow.json) | Inbound **email** trigger restricted to a sender, extracting from/subject/text. |
 
-On activation each trigger provisions its bucket, input and output in Webhook
-Relay and logs the public URL / email address to use. See
+On activation each trigger provisions its bucket and input in Webhook Relay,
+opens an outbound WebSocket, and logs the public URL / email address to use. See
 [../docs/testing-with-n8n.md](../docs/testing-with-n8n.md) for the full
 walkthrough.

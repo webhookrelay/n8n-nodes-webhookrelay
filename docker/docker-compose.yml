@@ -1,20 +1,21 @@
 # Local n8n for testing the Webhook Relay community nodes.
 #
-# n8n runs with --tunnel so it gets a public webhook URL that Webhook Relay's
-# cloud can forward to — no need to expose your machine yourself. The built
-# node package is mounted into n8n's custom-extensions folder, so a
-# `npm run build` in the repo root is all it takes to load your latest code
-# (restart the container to pick up changes).
+# The nodes receive events over an outbound WebSocket that n8n opens itself, so
+# n8n needs NO public URL — no tunnel, no port forwarding, no relay agent. Only
+# port 5678 (the editor) is published, to localhost.
 #
-#   cd ..  && npm run build      # build the nodes
+#   cd ..  && npm install && npm run build   # build the nodes
 #   cd docker && docker compose up
 #   open http://localhost:5678
 #
+# The built package plus its runtime dependencies (the Webhook Relay SDK + ws)
+# are mounted into n8n's custom-extensions folder. Rebuild and
+# `docker compose restart` to pick up code changes.
 services:
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n-webhookrelay
-    command: ['start', '--tunnel']
+    command: ['start']
     ports:
       - '5678:5678'
     environment:
@@ -33,11 +34,12 @@ services:
       - N8N_PERSONALIZATION_ENABLED=false
     volumes:
       - n8n_data:/home/node/.n8n
-      # Mount the built package (no node_modules needed — the nodes only use
-      # n8n-workflow, which n8n provides).
       - ../package.json:/home/node/.n8n/custom/n8n-nodes-webhookrelay/package.json:ro
       - ../index.js:/home/node/.n8n/custom/n8n-nodes-webhookrelay/index.js:ro
       - ../dist:/home/node/.n8n/custom/n8n-nodes-webhookrelay/dist:ro
+      # Runtime dependencies (@webhookrelay/sdk + ws). n8n-workflow resolves to
+      # n8n's own copy, so a production install (no devDependencies) is cleanest.
+      - ../node_modules:/home/node/.n8n/custom/n8n-nodes-webhookrelay/node_modules:ro
 
 volumes:
   n8n_data:

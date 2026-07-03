@@ -5,10 +5,7 @@
       "parameters": {
         "bucket": "n8n-email",
         "allowedSenders": "alerts@example.com",
-        "dropAttachments": false,
-        "durableDelivery": true,
-        "durabilitySchedule": "medium",
-        "throttleEnabled": false
+        "dropAttachments": false
       },
       "id": "e1e1e1e1-1111-4111-8111-111111111111",
       "name": "Webhook Relay Email Trigger",

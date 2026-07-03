@@ -1,9 +1,8 @@
 # Using the Webhook Relay nodes in n8n
 
 This walkthrough shows how to receive webhooks and inbound email in n8n through
-[Webhook Relay](https://webhookrelay.com) — with **durable delivery**,
-**throttling**, **endpoint authentication** and a **custom response**, none of
-which the built-in Webhook node offers.
+[Webhook Relay](https://webhookrelay.com) — **without a public IP, without port
+forwarding, and without exposing n8n to the internet**.
 
 There are two trigger nodes:
 
@@ -14,23 +13,24 @@ There are two trigger nodes:
 
 ## How it works
 
-On activation, a trigger node provisions three things in your Webhook Relay
-account and tears them down when you deactivate:
+Webhook Relay is the only public surface — n8n never is:
 
-1. a **bucket** (created if missing),
-2. a public **input** — the URL/address you give your provider (with your
-   chosen authentication and response), and
-3. an **output** that forwards each event to this workflow, applying **durable
-   delivery** and **throttling**.
+1. Your provider sends webhooks to a stable, public Webhook Relay **input URL**.
+   Webhook Relay authenticates the caller (optional) and returns your configured
+   **response** immediately.
+2. On activation, the node **opens an outbound WebSocket** from n8n to Webhook
+   Relay and subscribes to your bucket. Each event is pushed down that socket and
+   emitted into your workflow.
 
 ```
-Provider ──► Webhook Relay input ──►  output (durable + throttled) ──► n8n workflow
-             (auth + response)
+Provider ──HTTP──► Webhook Relay input ──► bucket
+                   (auth + response)         │
+                        n8n ──outbound WebSocket──┘
 ```
 
-Because Webhook Relay answers the sender immediately with your configured
-response and then delivers to n8n out of band, your workflow can be slow, retry,
-or briefly go down without the provider ever seeing an error.
+Because n8n **connects out** and never listens for inbound requests, it can run
+on `localhost` or behind a firewall/NAT with no public IP, no open ports, no
+tunnel and no relay agent.
 
 ## 1. Install the nodes
 
@@ -38,8 +38,7 @@ or briefly go down without the provider ever seeing an error.
 Install** and enter `n8n-nodes-webhookrelay`.
 
 **For local development:** see [`skills/n8n-local-testing`](../skills/n8n-local-testing/SKILL.md)
-for a Docker setup that loads the built nodes and exposes n8n publicly via a
-tunnel.
+for a Docker setup that loads the built nodes.
 
 Both trigger nodes then appear in the node picker:
 
@@ -62,30 +61,25 @@ is also supported.
 | Setting | What it does |
 | --- | --- |
 | **Bucket** | Webhook Relay bucket to use (created automatically). |
-| **HTTP Method** | The method your provider sends (usually `POST`). |
 | **Endpoint Authentication** | `None`, `Basic Auth`, or `Token` — callers must authenticate to your public URL. |
 | **Response Status Code / Body** | The response Webhook Relay returns to the sender immediately. |
-| **Durable Delivery** | Persist and retry delivery to n8n over a long window if the workflow is down. Pick a **Retry Schedule** (Seconds / Medium / Long). |
-| **Throttle** | Cap delivery rate (events per second/minute/hour) or concurrency. |
 
-Enabling **Durable Delivery** and **Throttle** reveals their options:
-
-![Trigger with durable delivery and throttling enabled](images/03-trigger-config-full.png)
-
-Save and **Activate** the workflow. The public URL is written to the n8n logs
-and shown in the Webhook Relay dashboard:
+Save and **Activate** the workflow. The node provisions the bucket and input,
+opens the WebSocket, and logs the public URL (also shown in the Webhook Relay
+dashboard):
 
 ```
-[Webhook Relay] Send POST webhooks to: https://my.webhookrelay.com/v1/webhooks/<id> (bucket "n8n")
+[Webhook Relay] Send webhooks to: https://my.webhookrelay.com/v1/webhooks/<id> (bucket "n8n")
 ```
 
-Send a request to that URL and the workflow runs.
+Send a request to that URL and the workflow runs — the event arrives over the
+WebSocket n8n opened.
 
 ## 4. Triggering from email
 
 The **Webhook Relay Email Trigger** works the same way but mints an inbound
 **email address** instead of an HTTP endpoint. Mail sent to it is parsed and
-delivered to your workflow; restrict senders with **Allowed Senders**.
+delivered over the socket; restrict senders with **Allowed Senders**.
 
 ![Webhook Relay Email Trigger parameters](images/04-email-config.png)
 
@@ -97,16 +91,18 @@ On activation the address is logged and shown in the dashboard:
 
 ## Payload shape
 
-Each execution item contains the received request:
+Each execution item contains the received event:
 
 ```json
 {
+  "meta": { "bucket_name": "n8n", "input_id": "…" },
   "headers": { "content-type": ["application/json"], "user-agent": ["Stripe/1.0"] },
-  "params": {},
   "query": { "foo": "bar" },
-  "body": { "id": "evt_123", "type": "payment_intent.succeeded" }
+  "body": { "id": "evt_123", "type": "payment_intent.succeeded" },
+  "method": "POST"
 }
 ```
 
-For the email trigger, `body` holds the parsed message (from, subject, text,
-html, attachments).
+`body` is parsed to an object when the payload is JSON, otherwise it is the raw
+string. For the email trigger, `body` holds the parsed message (from, subject,
+text, html, attachments).

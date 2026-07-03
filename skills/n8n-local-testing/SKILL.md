@@ -8,8 +8,9 @@ metadata:
 # Testing the Webhook Relay n8n nodes locally
 
 A ready-to-run Docker setup that loads the built community nodes into a local
-n8n and exposes it publicly (via n8n's tunnel) so Webhook Relay's cloud can
-forward real webhooks/email to your workflows.
+n8n. The nodes receive events over an **outbound WebSocket** that n8n opens
+itself, so n8n needs no public URL — no tunnel, no port forwarding, no relay
+agent. Only the editor (port 5678) is published, to localhost.
 
 ## Prerequisites
 
@@ -27,8 +28,8 @@ forward real webhooks/email to your workflows.
    npm run build
    ```
 
-2. **Start n8n** (mounts `dist/` into n8n's custom-extensions folder and starts
-   n8n with `--tunnel` for a public webhook URL):
+2. **Start n8n** (mounts `dist/` and the runtime deps into n8n's
+   custom-extensions folder — no `--tunnel`):
 
    ```bash
    cd docker
@@ -43,16 +44,16 @@ forward real webhooks/email to your workflows.
    The credential's *Test* button hits `GET /v1/buckets` to verify it.
 
 4. **Add a trigger**: pick **Webhook Relay Trigger** (HTTP webhooks) or
-   **Webhook Relay Email Trigger** (inbound email). Configure durable delivery,
-   throttling, endpoint auth and the response, then **Save** and **Activate**
-   the workflow.
+   **Webhook Relay Email Trigger** (inbound email). Optionally set endpoint
+   auth and the response, then **Save** and **Activate** the workflow.
 
 5. **Get the public URL / address**: on activation the node provisions a
-   bucket + input + output in Webhook Relay and logs the URL/address:
+   bucket + input in Webhook Relay, opens the WebSocket, and logs the
+   URL/address:
 
    ```bash
    docker compose logs -f | grep "Webhook Relay"
-   # [Webhook Relay] Send POST webhooks to: https://my.webhookrelay.com/v1/webhooks/<id>
+   # [Webhook Relay] Send webhooks to: https://my.webhookrelay.com/v1/webhooks/<id>
    ```
 
    The same URL/address is visible in the Webhook Relay dashboard. Send a
@@ -60,8 +61,9 @@ forward real webhooks/email to your workflows.
 
 ## How loading works
 
-- The nodes only depend on `n8n-workflow` (provided by n8n), so no
-  `node_modules` needs mounting — just `package.json`, `index.js` and `dist/`.
+- The nodes have two runtime dependencies (`@webhookrelay/sdk` + `ws`), so the
+  compose file mounts `node_modules` alongside `package.json`, `index.js` and
+  `dist/`. `n8n-workflow` resolves to n8n's own copy.
 - n8n's `CustomDirectoryLoader` globs `**/*.node.js` and `**/*.credentials.js`
   under `~/.n8n/custom`, which is where the compose file mounts the package.
 - After changing node code, rebuild (`npm run build`) and restart the
