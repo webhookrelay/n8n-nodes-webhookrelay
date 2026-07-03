@@ -1,4 +1,6 @@
 import type {
+	ILoadOptionsFunctions,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	ITriggerFunctions,
@@ -51,6 +53,19 @@ export class WebhookRelayTrigger implements INodeType {
 				required: true,
 				description:
 					'Webhook Relay bucket (by name). Created automatically if it does not exist.',
+			},
+			{
+				// A read-only display of the generated URL, not a resource picker, so
+				// the "dynamic options" naming/description rules don't apply here.
+				// eslint-disable-next-line n8n-nodes-base/node-param-display-name-wrong-for-dynamic-options
+				displayName: 'Public URL',
+				name: 'publicUrl',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getWebhookUrl' },
+				default: '',
+				// eslint-disable-next-line n8n-nodes-base/node-param-description-wrong-for-dynamic-options
+				description:
+					'The public URL to give your webhook provider. Open this dropdown (or click the refresh icon) to load it — the bucket and input are created if needed. Requires a valid credential and bucket name. Also logged on activation and shown in the Webhook Relay dashboard.',
 			},
 			// --- Endpoint authentication (bucket-level) --------------------------
 			{
@@ -107,6 +122,46 @@ export class WebhookRelayTrigger implements INodeType {
 					'Static body Webhook Relay returns to the sender. Any text, JSON or XML (max 250KB).',
 			},
 		],
+	};
+
+	methods = {
+		loadOptions: {
+			// Resolve (and display) the public URL to give the provider. Read/create
+			// only — never re-syncs an existing bucket's auth, so opening the panel
+			// can't clobber configuration.
+			async getWebhookUrl(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const bucketName = this.getNodeParameter('bucket', '') as string;
+				if (!bucketName) {
+					// eslint-disable-next-line n8n-nodes-base/node-param-display-name-miscased
+					return [{ name: 'Enter a bucket name to generate the URL', value: '' }];
+				}
+
+				const authentication = this.getNodeParameter('authentication', 'none') as string;
+				const auth = buildAuth(
+					authentication,
+					this.getNodeParameter('username', '') as string,
+					this.getNodeParameter('password', '') as string,
+					this.getNodeParameter('token', '') as string,
+				);
+				const responseStatusCode = this.getNodeParameter('responseStatusCode', 200) as number;
+				const responseBody = this.getNodeParameter('responseBody', '') as string;
+
+				const { bucket } = await ensureBucket.call(this, bucketName, {
+					auth,
+					stream: true,
+					syncExisting: false,
+				});
+				const input = await ensureInput.call(this, bucket.id as string, 'n8n', {
+					statusCode: responseStatusCode,
+					body: responseBody,
+				});
+
+				const credentials = await this.getCredentials('webhookRelayApi');
+				const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
+				const url = inputEndpointUrl(baseUrl, input.id as string);
+				return [{ name: url, value: url }];
+			},
+		},
 	};
 
 	async trigger(this: ITriggerFunctions): Promise<ITriggerResponse> {

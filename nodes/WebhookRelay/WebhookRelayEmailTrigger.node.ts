@@ -1,5 +1,7 @@
 import type {
 	IDataObject,
+	ILoadOptionsFunctions,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	ITriggerFunctions,
@@ -8,6 +10,22 @@ import type {
 import { NodeConnectionTypes } from 'n8n-workflow';
 
 import { ensureBucket, ensureEmailInput, startBucketSubscription } from './GenericFunctions';
+
+/** Build the email service-connection-input payload from node parameters. */
+function buildEmailInput(allowedSenders: string[], dropAttachments: boolean): IDataObject {
+	const emailInput: IDataObject = { enabled: true };
+	if (allowedSenders.length > 0) emailInput.allowed_senders = allowedSenders;
+	if (dropAttachments) emailInput.drop_attachments = true;
+	return emailInput;
+}
+
+/** Parse the comma-separated Allowed Senders parameter into a normalized list. */
+function parseAllowedSenders(raw: string): string[] {
+	return raw
+		.split(',')
+		.map((s) => s.trim().toLowerCase())
+		.filter((s) => s !== '');
+}
 
 export class WebhookRelayEmailTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -48,6 +66,19 @@ export class WebhookRelayEmailTrigger implements INodeType {
 					'Webhook Relay bucket (by name). Created automatically if it does not exist.',
 			},
 			{
+				// A read-only display of the generated address, not a resource picker,
+				// so the "dynamic options" naming/description rules don't apply here.
+				// eslint-disable-next-line n8n-nodes-base/node-param-display-name-wrong-for-dynamic-options
+				displayName: 'Email Address',
+				name: 'emailAddress',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getEmailAddress' },
+				default: '',
+				// eslint-disable-next-line n8n-nodes-base/node-param-description-wrong-for-dynamic-options
+				description:
+					'The inbound email address to send mail to. Open this dropdown (or click the refresh icon) to load it — the address is created if needed. Requires a valid credential and bucket name. Also logged on activation and shown in the Webhook Relay dashboard.',
+			},
+			{
 				displayName: 'Allowed Senders',
 				name: 'allowedSenders',
 				type: 'string',
@@ -66,15 +97,44 @@ export class WebhookRelayEmailTrigger implements INodeType {
 		],
 	};
 
+	methods = {
+		loadOptions: {
+			// Resolve (and display) the inbound email address. Read/create only.
+			async getEmailAddress(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const bucketName = this.getNodeParameter('bucket', '') as string;
+				if (!bucketName) {
+					// eslint-disable-next-line n8n-nodes-base/node-param-display-name-miscased
+					return [{ name: 'Enter a bucket name to generate the address', value: '' }];
+				}
+				const allowedSenders = parseAllowedSenders(
+					this.getNodeParameter('allowedSenders', '') as string,
+				);
+				const dropAttachments = this.getNodeParameter('dropAttachments', false) as boolean;
+
+				const { bucket } = await ensureBucket.call(this, bucketName, {
+					stream: true,
+					syncExisting: false,
+				});
+				const input = await ensureEmailInput.call(
+					this,
+					bucket.id as string,
+					'n8n-email',
+					buildEmailInput(allowedSenders, dropAttachments),
+				);
+				const address = (input.email_address as string) ?? '';
+				return [
+					{ name: address || 'Address created — see the Webhook Relay dashboard', value: address },
+				];
+			},
+		},
+	};
+
 	async trigger(this: ITriggerFunctions): Promise<ITriggerResponse> {
 		const bucketName = this.getNodeParameter('bucket') as string;
-		const allowedSendersRaw = this.getNodeParameter('allowedSenders', '') as string;
+		const allowedSenders = parseAllowedSenders(
+			this.getNodeParameter('allowedSenders', '') as string,
+		);
 		const dropAttachments = this.getNodeParameter('dropAttachments', false) as boolean;
-
-		const allowedSenders = allowedSendersRaw
-			.split(',')
-			.map((s) => s.trim().toLowerCase())
-			.filter((s) => s !== '');
 
 		// 1. Bucket, streaming enabled. Created if missing, reused otherwise —
 		//    never deleted.
@@ -82,10 +142,12 @@ export class WebhookRelayEmailTrigger implements INodeType {
 
 		// 2. Email service-connection input (an inbound address). Find-or-create so
 		//    the address stays stable across re-activations.
-		const emailInput: IDataObject = { enabled: true };
-		if (allowedSenders.length > 0) emailInput.allowed_senders = allowedSenders;
-		if (dropAttachments) emailInput.drop_attachments = true;
-		const input = await ensureEmailInput.call(this, bucket.id as string, 'n8n-email', emailInput);
+		const input = await ensureEmailInput.call(
+			this,
+			bucket.id as string,
+			'n8n-email',
+			buildEmailInput(allowedSenders, dropAttachments),
+		);
 
 		const address = (input.email_address as string) ?? '(shown in the dashboard)';
 		this.logger.info(`[Webhook Relay] Send email to: ${address} (bucket "${bucket.name}")`);

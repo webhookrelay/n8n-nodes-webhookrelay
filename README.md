@@ -50,8 +50,14 @@ Create an **API key** (`sk-…`) at
 Add a **Webhook Relay Trigger**, pick a bucket name, optionally set endpoint
 authentication and the response returned to the sender, then activate the
 workflow. On activation the node provisions the bucket and a public input in
-Webhook Relay, logs the public URL (also shown in the dashboard), and opens the
-WebSocket. Give that URL to your provider — webhooks arrive over the socket.
+Webhook Relay (enabling streaming so events flow over the socket), logs the
+public URL (also shown in the dashboard), and opens the WebSocket. Give that URL
+to your provider — webhooks arrive over the socket.
+
+The node's **Public URL** field shows the exact URL to hand your provider — open
+that dropdown (or click its refresh icon) to load it. The **Email Trigger** has
+an **Email Address** field that works the same way. Bucket and input are
+find-or-created and never deleted, so the URL/address stays stable.
 
 ![Webhook Relay Trigger parameters](docs/images/02-trigger-config.png)
 

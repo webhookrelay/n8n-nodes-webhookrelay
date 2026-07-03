@@ -75,17 +75,28 @@ export async function webhookRelayApiRequest(
 export async function ensureBucket(
 	this: RelayContext,
 	name: string,
-	options: { auth?: IDataObject; stream?: boolean } = {},
+	options: { auth?: IDataObject; stream?: boolean; syncExisting?: boolean } = {},
 ): Promise<{ bucket: IDataObject; created: boolean }> {
 	const buckets = (await webhookRelayApiRequest.call(this, 'GET', '/v1/buckets')) as IDataObject[];
 	const existing = buckets.find((b) => b.name === name || b.id === name);
 	if (existing) {
-		// Keep bucket-level auth in sync with the node config.
-		if (options.auth) {
-			await webhookRelayApiRequest.call(this, 'PUT', `/v1/buckets/${existing.id}`, {
-				name: existing.name,
-				auth: options.auth,
-			});
+		// Keep bucket-level auth AND streaming in sync with the node config.
+		// Streaming MUST be enabled for events to arrive over the WebSocket — a
+		// bucket created in the dashboard may have it off, which silently breaks
+		// delivery (webhooks are accepted but never streamed). A bucket PUT is a
+		// FULL replace, so the update must carry auth too or it would be cleared —
+		// hence `syncExisting: false` (used by read-only URL display) skips it.
+		if (options.syncExisting !== false && (options.auth !== undefined || options.stream !== undefined)) {
+			const updates: IDataObject = { name: existing.name };
+			if (options.auth !== undefined) updates.auth = options.auth;
+			if (options.stream !== undefined) updates.stream = options.stream;
+			const updated = (await webhookRelayApiRequest.call(
+				this,
+				'PUT',
+				`/v1/buckets/${existing.id}`,
+				updates,
+			)) as IDataObject;
+			return { bucket: updated?.id ? updated : { ...existing, ...updates }, created: false };
 		}
 		return { bucket: existing, created: false };
 	}
