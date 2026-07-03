@@ -3,12 +3,24 @@
  *
  * Uses the runtime's built-in global `WebSocket` (Node.js >= 22, which n8n's
  * official images ship). Handles the authenticate -> subscribe handshake,
- * replies to server pings, and reconnects on drop until closed. A fatal
- * `unauthorized` status stops reconnection.
+ * replies to the server's pings, sends its own keepalive pings, and reconnects
+ * on drop until closed. A fatal `unauthorized` status stops reconnection.
+ *
+ * Keepalive: the server pings every ~21s and we pong, but we ALSO send a
+ * client-side `{action:"ping"}` every 15s. The server ignores it, but it keeps
+ * the connection warm through intermediary proxies/load balancers that would
+ * otherwise idle it out. Reconnect is immediate on the first drop (the server
+ * tears the whole subscription down on any single write error, so fast recovery
+ * matters), then backs off if the server stays unreachable.
  *
  * Kept intentionally free of runtime dependencies so the package stays
  * zero-dependency (eligible for n8n community-node verification).
  */
+
+/** Client keepalive ping interval (ms). Server pings every ~21s independently. */
+const PING_INTERVAL_MS = 15000;
+/** Cap on the reconnect backoff (ms) when the server stays unreachable. */
+const MAX_RECONNECT_DELAY_MS = 15000;
 
 /** Minimal WebSocket surface (matches the global `WebSocket` and `ws`). */
 interface WebSocketLike {
@@ -78,6 +90,8 @@ export class WebhookRelaySocket {
 	private ws: WebSocketLike | null = null;
 	private closed = false;
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	private pingTimer: ReturnType<typeof setInterval> | null = null;
+	private reconnectAttempts = 0;
 
 	constructor(private readonly opts: SocketOptions) {}
 
@@ -113,6 +127,7 @@ export class WebhookRelaySocket {
 		ws.onerror = (event) =>
 			this.opts.onError?.(toError((event as { message?: unknown })?.message ?? 'WebSocket error'));
 		ws.onclose = () => {
+			this.stopPing();
 			this.ws = null;
 			if (!this.closed) this.scheduleReconnect();
 		};
@@ -145,7 +160,11 @@ export class WebhookRelaySocket {
 		if (msg.type === 'status') {
 			switch (msg.status) {
 				case 'authenticated':
+					// Healthy connection re-established — reset backoff and (re)start
+					// our keepalive. Client pings are only valid once authenticated.
+					this.reconnectAttempts = 0;
 					this.send({ action: 'subscribe', buckets: this.opts.buckets });
+					this.startPing();
 					break;
 				case 'ping':
 					this.send({ action: 'pong' });
@@ -163,10 +182,30 @@ export class WebhookRelaySocket {
 
 	private scheduleReconnect(): void {
 		if (this.closed || this.reconnectTimer) return;
+		const attempt = this.reconnectAttempts++;
+		// Reconnect immediately on the first drop after a healthy connection; if
+		// reconnects keep failing (server unreachable), back off exponentially up
+		// to a cap. The counter is reset to 0 the moment we re-authenticate.
+		const delay =
+			attempt === 0 ? 0 : Math.min(1000 * 2 ** (attempt - 1), MAX_RECONNECT_DELAY_MS);
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = null;
 			this.connect();
-		}, 3000);
+		}, delay);
+	}
+
+	private startPing(): void {
+		this.stopPing();
+		this.pingTimer = setInterval(() => {
+			this.send({ action: 'ping' });
+		}, PING_INTERVAL_MS);
+	}
+
+	private stopPing(): void {
+		if (this.pingTimer) {
+			clearInterval(this.pingTimer);
+			this.pingTimer = null;
+		}
 	}
 
 	private send(payload: unknown): void {
@@ -178,6 +217,7 @@ export class WebhookRelaySocket {
 	}
 
 	private teardown(code: number, reason: string): void {
+		this.stopPing();
 		const ws = this.ws;
 		this.ws = null;
 		if (!ws) return;

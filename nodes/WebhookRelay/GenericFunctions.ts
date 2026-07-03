@@ -129,8 +129,22 @@ export function buildAuth(
 	return { type: 'none' };
 }
 
-/** The public URL a provider sends webhooks to for a given input. */
+/**
+ * The public URL a provider sends webhooks to for a given input. On the Webhook
+ * Relay SaaS this is the short per-input host `https://<id>.hooks.webhookrelay.com`;
+ * for a self-hosted/unknown base URL it falls back to the always-valid API path
+ * form `<baseUrl>/v1/webhooks/<id>`.
+ */
 export function inputEndpointUrl(baseUrl: string, inputId: string): string {
+	let host: string;
+	try {
+		host = new URL(baseUrl).host;
+	} catch {
+		host = 'my.webhookrelay.com';
+	}
+	if (host === 'webhookrelay.com' || host.endsWith('.webhookrelay.com')) {
+		return `https://${inputId}.hooks.webhookrelay.com`;
+	}
 	return `${baseUrl.replace(/\/+$/, '')}/v1/webhooks/${inputId}`;
 }
 

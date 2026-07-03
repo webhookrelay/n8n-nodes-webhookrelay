@@ -54,10 +54,16 @@ Webhook Relay (enabling streaming so events flow over the socket), logs the
 public URL (also shown in the dashboard), and opens the WebSocket. Give that URL
 to your provider — webhooks arrive over the socket.
 
-The node's **Public URL** field shows the exact URL to hand your provider — open
-that dropdown (or click its refresh icon) to load it. The **Email Trigger** has
-an **Email Address** field that works the same way. Bucket and input are
-find-or-created and never deleted, so the URL/address stays stable.
+The node's **Public URL** field shows the exact URL to hand your provider (e.g.
+`https://<id>.hooks.webhookrelay.com`) — open that dropdown (or click its refresh
+icon) to load it. The **Email Trigger** has an **Email Address** field that works
+the same way. Bucket and input are find-or-created and never deleted, so the
+URL/address stays stable.
+
+**Test vs activate:** *Test this trigger* captures a **single** event so you can
+build the workflow, then stops — that's expected. **Activate** the workflow to
+receive events continuously. The connection replies to server pings, sends its
+own keepalive ping every 15 s, and reconnects immediately if it drops.
 
 ![Webhook Relay Trigger parameters](docs/images/02-trigger-config.png)
 
