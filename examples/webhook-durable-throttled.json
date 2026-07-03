@@ -1,0 +1,76 @@
+{
+  "name": "Webhook Relay — durable + throttled webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "bucket": "n8n",
+        "httpMethod": "POST",
+        "authentication": "token",
+        "responseStatusCode": 200,
+        "responseBody": "{\"ok\":true}",
+        "durableDelivery": true,
+        "durabilitySchedule": "long",
+        "throttleEnabled": true,
+        "throttleMode": "rate",
+        "throttleRate": 10,
+        "throttleInterval": "minute"
+      },
+      "id": "b1a1a1a1-1111-4111-8111-111111111111",
+      "name": "Webhook Relay Trigger",
+      "type": "n8n-nodes-webhookrelay.webhookRelayTrigger",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "credentials": {
+        "webhookRelayApi": {
+          "id": "1",
+          "name": "Webhook Relay account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "eventType",
+              "value": "={{ $json.body.type }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c2c2c2c2-2222-4222-8222-222222222222",
+      "name": "Extract fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Relay Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

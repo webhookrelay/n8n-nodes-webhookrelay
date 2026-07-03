@@ -1,0 +1,63 @@
+{
+  "name": "n8n-nodes-webhookrelay",
+  "version": "0.1.0",
+  "description": "n8n community nodes for Webhook Relay — receive webhooks and inbound email through Webhook Relay with durable delivery, throttling, authentication and custom responses.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "webhook",
+    "webhooks",
+    "webhookrelay",
+    "webhook-relay",
+    "email",
+    "trigger"
+  ],
+  "license": "MIT",
+  "homepage": "https://webhookrelay.com",
+  "author": {
+    "name": "Webhook Relay",
+    "email": "support@webhookrelay.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webhookrelay/n8n-nodes-webhookrelay.git"
+  },
+  "engines": {
+    "node": ">=18.10"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "npx rimraf dist && tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier nodes credentials --write",
+    "lint": "eslint nodes credentials --ext .ts",
+    "lintfix": "eslint nodes credentials --ext .ts --fix",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/WebhookRelayApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/WebhookRelay/WebhookRelayTrigger.node.js",
+      "dist/nodes/WebhookRelay/WebhookRelayEmailTrigger.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-n8n-nodes-base": "^1.16.3",
+    "gulp": "^5.0.0",
+    "n8n-workflow": "^1.55.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^5.0.10",
+    "typescript": "^5.5.4"
+  }
+}
