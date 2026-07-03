@@ -1,14 +1,19 @@
 # n8n-nodes-webhookrelay
 
-n8n community nodes for [Webhook Relay](https://webhookrelay.com) — receive
-webhooks and inbound email in n8n with **durable delivery**, **throttling**,
-**endpoint authentication** and **custom responses**.
+**Receive webhooks and inbound email in self-hosted n8n — no public IP, no port
+forwarding, no router changes, and n8n never exposed to the internet.**
 
-[Webhook Relay](https://webhookrelay.com) sits in front of your workflow as a
-managed front door: it answers the sender immediately with your configured
-response, then delivers each event to n8n out of band — persisting and retrying
-for days if your workflow is briefly down, and throttling bursts so it isn't
-overwhelmed.
+n8n community nodes for [Webhook Relay](https://webhookrelay.com). Webhook Relay
+gives your provider a stable, public URL (or email address), verifies and answers
+the sender for you, then forwards each event into n8n — so your instance can stay
+on `localhost` or behind a firewall/NAT. Layer on **durable delivery** (retries
+for up to 30 days with exponential backoff), **throttling**, **endpoint
+authentication** and **custom responses**.
+
+Because the connection into your network is **outbound-only**, your internal n8n
+endpoint stays hidden and protected from direct internet exposure — the same
+mechanism Webhook Relay uses to deliver webhooks to CI servers and internal
+services [behind a firewall or NAT](https://webhookrelay.com/features/webhook-to-internal-server/).
 
 ## Nodes
 
@@ -67,9 +72,22 @@ cd docker && docker compose up
 # open http://localhost:5678
 ```
 
-n8n loads the package from `~/.n8n/custom` (mounted from `dist/`) and runs with
-`--tunnel` so Webhook Relay's cloud can forward real events to your machine.
-Rebuild and `docker compose restart` to reload changes.
+n8n loads the package from `~/.n8n/custom` (mounted from `dist/`). Rebuild and
+`docker compose restart` to reload changes.
+
+### Keeping n8n private (recommended for real use)
+
+The public surface is always Webhook Relay's input URL — never n8n. How events
+reach n8n decides whether n8n is exposed:
+
+- **Quick test:** the compose file starts n8n with `--tunnel`, which gives n8n a
+  temporary public URL. Fine for a 60-second smoke test, but n8n's own docs mark
+  tunnels as **development-only**.
+- **Private / production:** run the outbound-only
+  [Webhook Relay agent](https://webhookrelay.com/docs/) next to n8n and keep n8n
+  on `localhost` (no tunnel, no exposed port). The agent connects
+  **out** from your network and delivers each webhook to n8n locally, so n8n is
+  never reachable from the internet — no public IP, no inbound ports.
 
 ## Compatibility
 
