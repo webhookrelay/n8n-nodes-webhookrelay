@@ -28,8 +28,8 @@ agent. Only the editor (port 5678) is published, to localhost.
    npm run build
    ```
 
-2. **Start n8n** (mounts `dist/` and the runtime deps into n8n's
-   custom-extensions folder — no `--tunnel`):
+2. **Start n8n** (mounts `dist/` into n8n's custom-extensions folder — the nodes
+   have zero runtime dependencies, so no `node_modules` and no `--tunnel`):
 
    ```bash
    cd docker
@@ -61,9 +61,10 @@ agent. Only the editor (port 5678) is published, to localhost.
 
 ## How loading works
 
-- The nodes have two runtime dependencies (`@webhookrelay/sdk` + `ws`), so the
-  compose file mounts `node_modules` alongside `package.json`, `index.js` and
-  `dist/`. `n8n-workflow` resolves to n8n's own copy.
+- The nodes have **zero runtime dependencies** — they use the runtime's built-in
+  global `WebSocket` (Node >= 22, which n8n's images ship) and n8n's own
+  `n8n-workflow`. So only `package.json`, `index.js` and `dist/` are mounted; no
+  `node_modules` needed.
 - n8n's `CustomDirectoryLoader` globs `**/*.node.js` and `**/*.credentials.js`
   under `~/.n8n/custom`, which is where the compose file mounts the package.
 - After changing node code, rebuild (`npm run build`) and restart the

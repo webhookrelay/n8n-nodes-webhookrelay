@@ -74,15 +74,17 @@ cd docker && docker compose up
 # open http://localhost:5678
 ```
 
-The compose file mounts the built package **and its runtime dependencies**
-(`@webhookrelay/sdk` + `ws`) into `~/.n8n/custom`; `n8n-workflow` resolves to
-n8n's own copy. No `--tunnel` is needed — the node opens the WebSocket itself.
-Rebuild and `docker compose restart` to reload changes.
+The compose file mounts just the built package into `~/.n8n/custom` — the nodes
+have **zero runtime dependencies** (they use the runtime's built-in `WebSocket`
+and n8n's own `n8n-workflow`), so there's no `node_modules` to mount and no
+`--tunnel` to run. Rebuild and `docker compose restart` to reload changes.
 
 ## Compatibility
 
 - n8n `>= 1.x` (verified on 2.x)
-- Node.js `>= 18.10`
+- **Zero runtime dependencies.** Events are received over the runtime's built-in
+  global `WebSocket` (Node.js `>= 22`) — n8n's official images already ship
+  Node 22+/24, so there's nothing to install.
 
 ## Resources
 

@@ -61,14 +61,11 @@
       "dist/nodes/WebhookRelay/WebhookRelayEmailTrigger.node.js"
     ]
   },
-  "dependencies": {
-    "@webhookrelay/sdk": "^0.2.0",
-    "ws": "^8.18.0"
-  },
   "peerDependencies": {
     "n8n-workflow": "*"
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
     "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.0",
     "eslint-plugin-n8n-nodes-base": "^1.16.3",

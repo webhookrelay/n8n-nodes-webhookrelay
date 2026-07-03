@@ -11,7 +11,8 @@ import type {
 	JsonObject,
 } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
-import { WebhookRelay, type WebhookEvent, type WebhookSubscription } from '@webhookrelay/sdk';
+
+import { WebhookRelaySocket, type SocketAuth, type WebhookRelayEvent } from './socket';
 
 type RelayContext =
 	| IHookFunctions
@@ -19,6 +20,12 @@ type RelayContext =
 	| ILoadOptionsFunctions
 	| ITriggerFunctions
 	| IExecuteFunctions;
+
+/**
+ * The constant "key" the WebSocket server expects when authenticating with a
+ * single account API key (the classic access token uses a real key/secret pair).
+ */
+const API_KEY_SOCKET_KEY = 'whr';
 
 /**
  * Make an authenticated request to the Webhook Relay REST API using the
@@ -116,21 +123,19 @@ export function inputEndpointUrl(baseUrl: string, inputId: string): string {
 	return `${baseUrl.replace(/\/+$/, '')}/v1/webhooks/${inputId}`;
 }
 
-/** Build an SDK client from the `webhookRelayApi` credential values. */
-export function webhookRelayClient(credentials: IDataObject): WebhookRelay {
-	const baseUrl = (credentials.baseUrl as string) || undefined;
+/** Map the `webhookRelayApi` credential to the WebSocket auth key/secret. */
+export function socketAuthFromCredentials(credentials: IDataObject): SocketAuth {
 	if (credentials.authType === 'token') {
-		return new WebhookRelay({
+		return {
 			key: credentials.tokenKey as string,
 			secret: credentials.tokenSecret as string,
-			baseUrl,
-		});
+		};
 	}
-	return new WebhookRelay({ apiKey: credentials.apiKey as string, baseUrl });
+	return { key: API_KEY_SOCKET_KEY, secret: credentials.apiKey as string };
 }
 
 /** Shape a streamed Webhook Relay event into an n8n item. */
-export function formatWebhookEvent(event: WebhookEvent): IDataObject {
+export function formatWebhookEvent(event: WebhookRelayEvent): IDataObject {
 	let body: unknown = event.body;
 	if (typeof event.body === 'string' && event.body.length > 0) {
 		try {
@@ -173,11 +178,14 @@ export async function startBucketSubscription(
 	onClose: () => Promise<void>,
 ): Promise<ITriggerResponse> {
 	const credentials = await ctx.getCredentials('webhookRelayApi');
-	const client = webhookRelayClient(credentials);
+	const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
+	const auth = socketAuthFromCredentials(credentials);
 
-	let subscription: WebhookSubscription | undefined;
+	let socket: WebhookRelaySocket | undefined;
 	const start = (onFirst?: () => void) => {
-		subscription = client.webhooks.subscribe({
+		socket = new WebhookRelaySocket({
+			baseUrl,
+			auth,
 			buckets: [bucketId],
 			onWebhook: (event) => {
 				ctx.emit([ctx.helpers.returnJsonArray([formatWebhookEvent(event)])]);
@@ -185,6 +193,7 @@ export async function startBucketSubscription(
 			},
 			onError: (err) => ctx.logger.error(`[Webhook Relay] socket error: ${err.message}`),
 		});
+		socket.start();
 	};
 
 	// In activated workflows, start streaming immediately. In manual ("listen
@@ -193,7 +202,7 @@ export async function startBucketSubscription(
 
 	return {
 		closeFunction: async () => {
-			subscription?.close();
+			socket?.close();
 			await onClose();
 		},
 		manualTriggerFunction: async () => {

@@ -8,9 +8,10 @@
 #   cd docker && docker compose up
 #   open http://localhost:5678
 #
-# The built package plus its runtime dependencies (the Webhook Relay SDK + ws)
-# are mounted into n8n's custom-extensions folder. Rebuild and
-# `docker compose restart` to pick up code changes.
+# The built package is mounted into n8n's custom-extensions folder. The nodes
+# have zero runtime dependencies (they use n8n's WebSocket-capable Node runtime),
+# so no node_modules mount is needed. Rebuild and `docker compose restart` to
+# pick up code changes.
 services:
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
@@ -37,9 +38,6 @@ services:
       - ../package.json:/home/node/.n8n/custom/n8n-nodes-webhookrelay/package.json:ro
       - ../index.js:/home/node/.n8n/custom/n8n-nodes-webhookrelay/index.js:ro
       - ../dist:/home/node/.n8n/custom/n8n-nodes-webhookrelay/dist:ro
-      # Runtime dependencies (@webhookrelay/sdk + ws). n8n-workflow resolves to
-      # n8n's own copy, so a production install (no devDependencies) is cleanest.
-      - ../node_modules:/home/node/.n8n/custom/n8n-nodes-webhookrelay/node_modules:ro
 
 volumes:
   n8n_data:
