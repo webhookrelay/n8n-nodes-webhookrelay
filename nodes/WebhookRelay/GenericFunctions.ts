@@ -123,6 +123,93 @@ export function inputEndpointUrl(baseUrl: string, inputId: string): string {
 	return `${baseUrl.replace(/\/+$/, '')}/v1/webhooks/${inputId}`;
 }
 
+/**
+ * Find-or-create the HTTP input named `name` in a bucket and keep its
+ * sender-facing response in sync. Idempotent and non-destructive: reuses the
+ * existing input (so its public URL stays stable across re-activations) rather
+ * than creating a duplicate, and never deletes anything.
+ */
+export async function ensureInput(
+	this: RelayContext,
+	bucketId: string,
+	name: string,
+	response: { statusCode: number; body?: string },
+): Promise<IDataObject> {
+	const body: IDataObject = { name, status_code: response.statusCode, body: response.body ?? '' };
+
+	const bucket = (await webhookRelayApiRequest.call(
+		this,
+		'GET',
+		`/v1/buckets/${bucketId}`,
+	)) as IDataObject;
+	const existing = ((bucket.inputs as IDataObject[] | undefined) ?? []).find(
+		(i) => i.name === name,
+	);
+
+	if (existing) {
+		await webhookRelayApiRequest.call(
+			this,
+			'PUT',
+			`/v1/buckets/${bucketId}/inputs/${existing.id}`,
+			body,
+		);
+		return existing;
+	}
+	return (await webhookRelayApiRequest.call(
+		this,
+		'POST',
+		`/v1/buckets/${bucketId}/inputs`,
+		body,
+	)) as IDataObject;
+}
+
+/**
+ * Find-or-create the inbound-email service-connection input named `name`.
+ * Idempotent and non-destructive, like {@link ensureInput}: an existing inbound
+ * address is reused (and kept stable) instead of minting a new one.
+ */
+export async function ensureEmailInput(
+	this: RelayContext,
+	bucketId: string,
+	name: string,
+	emailInput: IDataObject,
+): Promise<IDataObject> {
+	const body: IDataObject = {
+		name,
+		service_connection_input_type: 'email',
+		email_input: emailInput,
+	};
+
+	const bucket = (await webhookRelayApiRequest.call(
+		this,
+		'GET',
+		`/v1/buckets/${bucketId}`,
+	)) as IDataObject;
+	const existing = ((bucket.service_connection_inputs as IDataObject[] | undefined) ?? []).find(
+		(s) => s.name === name,
+	);
+
+	if (existing) {
+		try {
+			await webhookRelayApiRequest.call(
+				this,
+				'PUT',
+				`/v1/buckets/${bucketId}/service-connection-inputs/${existing.id}`,
+				body,
+			);
+		} catch {
+			// Keep the existing inbound address even if a config update is rejected.
+		}
+		return existing;
+	}
+	return (await webhookRelayApiRequest.call(
+		this,
+		'POST',
+		`/v1/buckets/${bucketId}/service-connection-inputs`,
+		body,
+	)) as IDataObject;
+}
+
 /** Map the `webhookRelayApi` credential to the WebSocket auth key/secret. */
 export function socketAuthFromCredentials(credentials: IDataObject): SocketAuth {
 	if (credentials.authType === 'token') {
@@ -169,13 +256,13 @@ export function formatWebhookEvent(event: WebhookRelayEvent): IDataObject {
  * n8n trigger lifecycle. n8n opens the connection itself — no tunnel and no
  * relay agent — so the instance is never exposed to the internet.
  *
- * `onClose` runs on deactivation (after the socket is closed) to tear down any
- * resources the node provisioned.
+ * Deactivation only closes the socket; the bucket and input the node
+ * provisioned are left in place (never deleted), so the public URL stays stable
+ * and nothing the user set up in Webhook Relay is removed.
  */
 export async function startBucketSubscription(
 	ctx: ITriggerFunctions,
 	bucketId: string,
-	onClose: () => Promise<void>,
 ): Promise<ITriggerResponse> {
 	const credentials = await ctx.getCredentials('webhookRelayApi');
 	const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
@@ -203,7 +290,6 @@ export async function startBucketSubscription(
 	return {
 		closeFunction: async () => {
 			socket?.close();
-			await onClose();
 		},
 		manualTriggerFunction: async () => {
 			await new Promise<void>((resolve) => start(resolve));

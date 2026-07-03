@@ -1,5 +1,4 @@
 import type {
-	IDataObject,
 	INodeType,
 	INodeTypeDescription,
 	ITriggerFunctions,
@@ -10,9 +9,9 @@ import { NodeConnectionTypes } from 'n8n-workflow';
 import {
 	buildAuth,
 	ensureBucket,
+	ensureInput,
 	inputEndpointUrl,
 	startBucketSubscription,
-	webhookRelayApiRequest,
 } from './GenericFunctions';
 
 export class WebhookRelayTrigger implements INodeType {
@@ -39,7 +38,7 @@ export class WebhookRelayTrigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'On activation this node creates a Webhook Relay bucket and a public input, then opens an outbound WebSocket to receive events. n8n needs no public URL, tunnel or agent. The input URL is logged and shown in the Webhook Relay dashboard.',
+					'On activation this node creates the Webhook Relay bucket and input if they do not exist (and reuses them otherwise), then opens an outbound WebSocket to receive events. Deactivating only closes the socket — nothing is deleted. n8n needs no public URL, tunnel or agent; the input URL is logged and shown in the dashboard.',
 				name: 'notice',
 				type: 'notice',
 				default: '',
@@ -122,21 +121,19 @@ export class WebhookRelayTrigger implements INodeType {
 		const responseStatusCode = this.getNodeParameter('responseStatusCode', 200) as number;
 		const responseBody = this.getNodeParameter('responseBody', '') as string;
 
-		// 1. Bucket (with auth), streaming enabled.
-		const { bucket, created } = await ensureBucket.call(this, bucketName, {
+		// 1. Bucket (with auth), streaming enabled. Created if missing, reused if
+		//    it already exists — never deleted.
+		const { bucket } = await ensureBucket.call(this, bucketName, {
 			auth,
 			stream: true,
 		});
 
-		// 2. Public input endpoint with the sender-facing response.
-		const inputBody: IDataObject = { name: 'n8n', status_code: responseStatusCode };
-		if (responseBody !== '') inputBody.body = responseBody;
-		const input = (await webhookRelayApiRequest.call(
-			this,
-			'POST',
-			`/v1/buckets/${bucket.id}/inputs`,
-			inputBody,
-		)) as IDataObject;
+		// 2. Public input endpoint with the sender-facing response. Find-or-create
+		//    so the URL stays stable across re-activations.
+		const input = await ensureInput.call(this, bucket.id as string, 'n8n', {
+			statusCode: responseStatusCode,
+			body: responseBody,
+		});
 
 		const credentials = await this.getCredentials('webhookRelayApi');
 		const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
@@ -145,29 +142,8 @@ export class WebhookRelayTrigger implements INodeType {
 			`[Webhook Relay] Send webhooks to: ${publicUrl} (bucket "${bucket.name}")`,
 		);
 
-		// 3. Receive over an outbound WebSocket; tear the input (and bucket, if we
-		//    created it) down on deactivation.
-		const cleanup = async () => {
-			try {
-				await webhookRelayApiRequest.call(
-					this,
-					'DELETE',
-					`/v1/buckets/${bucket.id}/inputs/${input.id}`,
-				);
-				if (created) {
-					await webhookRelayApiRequest.call(
-						this,
-						'DELETE',
-						`/v1/buckets/${bucket.id}`,
-						{},
-						{ force: 'true' },
-					);
-				}
-			} catch {
-				// best-effort cleanup
-			}
-		};
-
-		return startBucketSubscription(this, bucket.id as string, cleanup);
+		// 3. Receive over an outbound WebSocket. On deactivation only the socket is
+		//    closed — the bucket and input are left in place.
+		return startBucketSubscription(this, bucket.id as string);
 	}
 }

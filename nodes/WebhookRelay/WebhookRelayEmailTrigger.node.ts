@@ -7,7 +7,7 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
-import { ensureBucket, startBucketSubscription, webhookRelayApiRequest } from './GenericFunctions';
+import { ensureBucket, ensureEmailInput, startBucketSubscription } from './GenericFunctions';
 
 export class WebhookRelayEmailTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -33,7 +33,7 @@ export class WebhookRelayEmailTrigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'On activation this node creates an inbound email address in Webhook Relay and opens an outbound WebSocket to receive parsed mail. n8n needs no public URL, tunnel or agent. The address is logged and shown in the Webhook Relay dashboard.',
+					'On activation this node creates an inbound email address in Webhook Relay if one does not exist (and reuses it otherwise), then opens an outbound WebSocket to receive parsed mail. Deactivating only closes the socket — nothing is deleted. n8n needs no public URL, tunnel or agent; the address is logged and shown in the dashboard.',
 				name: 'notice',
 				type: 'notice',
 				default: '',
@@ -76,49 +76,22 @@ export class WebhookRelayEmailTrigger implements INodeType {
 			.map((s) => s.trim().toLowerCase())
 			.filter((s) => s !== '');
 
-		// 1. Bucket, streaming enabled.
-		const { bucket, created } = await ensureBucket.call(this, bucketName, { stream: true });
+		// 1. Bucket, streaming enabled. Created if missing, reused otherwise —
+		//    never deleted.
+		const { bucket } = await ensureBucket.call(this, bucketName, { stream: true });
 
-		// 2. Email service-connection input (mints an inbound address).
+		// 2. Email service-connection input (an inbound address). Find-or-create so
+		//    the address stays stable across re-activations.
 		const emailInput: IDataObject = { enabled: true };
 		if (allowedSenders.length > 0) emailInput.allowed_senders = allowedSenders;
 		if (dropAttachments) emailInput.drop_attachments = true;
-		const input = (await webhookRelayApiRequest.call(
-			this,
-			'POST',
-			`/v1/buckets/${bucket.id}/service-connection-inputs`,
-			{
-				name: 'n8n-email',
-				service_connection_input_type: 'email',
-				email_input: emailInput,
-			},
-		)) as IDataObject;
+		const input = await ensureEmailInput.call(this, bucket.id as string, 'n8n-email', emailInput);
 
 		const address = (input.email_address as string) ?? '(shown in the dashboard)';
 		this.logger.info(`[Webhook Relay] Send email to: ${address} (bucket "${bucket.name}")`);
 
-		// 3. Receive parsed mail over an outbound WebSocket; clean up on deactivation.
-		const cleanup = async () => {
-			try {
-				await webhookRelayApiRequest.call(
-					this,
-					'DELETE',
-					`/v1/buckets/${bucket.id}/service-connection-inputs/${input.id}`,
-				);
-				if (created) {
-					await webhookRelayApiRequest.call(
-						this,
-						'DELETE',
-						`/v1/buckets/${bucket.id}`,
-						{},
-						{ force: 'true' },
-					);
-				}
-			} catch {
-				// best-effort cleanup
-			}
-		};
-
-		return startBucketSubscription(this, bucket.id as string, cleanup);
+		// 3. Receive parsed mail over an outbound WebSocket. On deactivation only
+		//    the socket is closed — the bucket and address are left in place.
+		return startBucketSubscription(this, bucket.id as string);
 	}
 }
