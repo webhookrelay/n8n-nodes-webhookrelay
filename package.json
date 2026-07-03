@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-webhookrelay",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "n8n community nodes for Webhook Relay — receive webhooks and inbound email in self-hosted n8n over an outbound WebSocket, with no public IP and n8n never exposed to the internet.",
   "keywords": [
     "n8n-community-node-package",
