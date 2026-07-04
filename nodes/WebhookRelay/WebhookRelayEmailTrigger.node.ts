@@ -9,7 +9,17 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
-import { ensureBucket, ensureEmailInput, startBucketSubscription } from './GenericFunctions';
+import {
+	ensureBucket,
+	ensureEmailInput,
+	ensureOutput,
+	startBucketSubscription,
+} from './GenericFunctions';
+
+/** Name used for both our email input and our internal output on the bucket. */
+const RESOURCE_NAME = 'n8n-email';
+/** Internal (localhost) output destination — never HTTP-forwarded; we consume it over the socket. */
+const OUTPUT_DESTINATION = 'http://localhost';
 
 /** Build the email service-connection-input payload from node parameters. */
 function buildEmailInput(allowedSenders: string[], dropAttachments: boolean): IDataObject {
@@ -51,7 +61,7 @@ export class WebhookRelayEmailTrigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'On activation this node creates an inbound email address in Webhook Relay if one does not exist (and reuses it otherwise), then opens an outbound WebSocket to receive parsed mail. Deactivating only closes the socket — nothing is deleted. n8n needs no public URL, tunnel or agent; the address is logged and shown in the dashboard.',
+					'On activation this node creates an inbound email address and an internal output (destination http://localhost) in Webhook Relay if they do not exist — and reuses them otherwise — then opens an outbound WebSocket scoped to that output. Tune per-output options like throttling on the output in the Webhook Relay dashboard; the node never overwrites them. Deactivating only closes the socket — nothing is deleted. n8n needs no public URL, tunnel or agent.',
 				name: 'notice',
 				type: 'notice',
 				default: '',
@@ -118,7 +128,7 @@ export class WebhookRelayEmailTrigger implements INodeType {
 				const input = await ensureEmailInput.call(
 					this,
 					bucket.id as string,
-					'n8n-email',
+					RESOURCE_NAME,
 					buildEmailInput(allowedSenders, dropAttachments),
 				);
 				const address = (input.email_address as string) ?? '';
@@ -145,15 +155,21 @@ export class WebhookRelayEmailTrigger implements INodeType {
 		const input = await ensureEmailInput.call(
 			this,
 			bucket.id as string,
-			'n8n-email',
+			RESOURCE_NAME,
 			buildEmailInput(allowedSenders, dropAttachments),
 		);
+
+		// 3. Internal output we subscribe to. Inbound email fans out to the
+		//    bucket's outputs just like a webhook, so scoping to our own output
+		//    isolates us from any other outputs and lets per-output config apply.
+		//    Find-or-create and never touched on reuse.
+		await ensureOutput.call(this, bucket.id as string, RESOURCE_NAME, OUTPUT_DESTINATION);
 
 		const address = (input.email_address as string) ?? '(shown in the dashboard)';
 		this.logger.info(`[Webhook Relay] Send email to: ${address} (bucket "${bucket.name}")`);
 
-		// 3. Receive parsed mail over an outbound WebSocket. On deactivation only
-		//    the socket is closed — the bucket and address are left in place.
-		return startBucketSubscription(this, bucket.id as string);
+		// 4. Receive parsed mail over an outbound WebSocket, scoped to our output.
+		//    On deactivation only the socket is closed — nothing is deleted.
+		return startBucketSubscription(this, bucket.id as string, RESOURCE_NAME);
 	}
 }
