@@ -81,6 +81,11 @@ settings are preserved.
 See the full walkthrough with screenshots in
 **[docs/testing-with-n8n.md](docs/testing-with-n8n.md)**.
 
+## Webhook Trigger
+
+Webhook Trigger node allows you to receive HTTP webhooks (Stripe, GitHub, Shopify, …) with endpoint authentication and a custom response. You don't 
+need to expose your n8n instance to the internet, and you can use it with any provider that supports webhooks. All request parameters like body, headers, path, etc. are available as variables in the workflow.
+
 ## Email Trigger
 
 Webhook Relay Email Trigger node allows you to trigger a workflow from inbound email sent to a generated address. Once you configure the node,
