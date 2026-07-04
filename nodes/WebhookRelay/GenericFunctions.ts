@@ -235,6 +235,38 @@ export async function ensureEmailInput(
 	)) as IDataObject;
 }
 
+/**
+ * Find-or-create an internal output named `name` in a bucket. The output is
+ * what the socket subscription scopes to (a bucket streams one event per
+ * output, tagged with `output_name`). A `http://localhost` destination is
+ * forced to `internal` by the server, so nothing is ever HTTP-forwarded to it —
+ * events reach us purely over the socket, and per-output config (e.g.
+ * throttling) applies. Idempotent and NON-DESTRUCTIVE: an existing output is
+ * returned untouched so any durability/throttle the user configured is kept.
+ */
+export async function ensureOutput(
+	this: RelayContext,
+	bucketId: string,
+	name: string,
+	destination: string,
+): Promise<IDataObject> {
+	const bucket = (await webhookRelayApiRequest.call(
+		this,
+		'GET',
+		`/v1/buckets/${bucketId}`,
+	)) as IDataObject;
+	const existing = ((bucket.outputs as IDataObject[] | undefined) ?? []).find(
+		(o) => o.name === name,
+	);
+	if (existing) return existing; // leave it alone — preserve user config
+
+	return (await webhookRelayApiRequest.call(this, 'POST', `/v1/buckets/${bucketId}/outputs`, {
+		name,
+		destination,
+		internal: true,
+	})) as IDataObject;
+}
+
 /** Map the `webhookRelayApi` credential to the WebSocket auth key/secret. */
 export function socketAuthFromCredentials(credentials: IDataObject): SocketAuth {
 	if (credentials.authType === 'token') {
@@ -288,6 +320,7 @@ export function formatWebhookEvent(event: WebhookRelayEvent): IDataObject {
 export async function startBucketSubscription(
 	ctx: ITriggerFunctions,
 	bucketId: string,
+	outputName?: string,
 ): Promise<ITriggerResponse> {
 	const credentials = await ctx.getCredentials('webhookRelayApi');
 	const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
@@ -299,6 +332,7 @@ export async function startBucketSubscription(
 			baseUrl,
 			auth,
 			buckets: [bucketId],
+			outputName,
 			onWebhook: (event) => {
 				ctx.emit([ctx.helpers.returnJsonArray([formatWebhookEvent(event)])]);
 				onFirst?.();

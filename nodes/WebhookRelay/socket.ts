@@ -57,6 +57,13 @@ export interface SocketOptions {
 	auth: SocketAuth;
 	/** Bucket IDs or account-unique names to subscribe to. */
 	buckets: string[];
+	/**
+	 * When set, only deliver events for this output (matched against
+	 * `meta.output_name`). A bucket with N outputs streams one event PER output,
+	 * so this scopes delivery to "just our own" output. Leave unset to receive
+	 * every event on the bucket.
+	 */
+	outputName?: string;
 	onWebhook: (event: WebhookRelayEvent) => void;
 	onError?: (err: Error) => void;
 }
@@ -143,6 +150,10 @@ export class WebhookRelaySocket {
 
 		if (msg.type === 'webhook') {
 			const meta = (msg.meta ?? {}) as Record<string, unknown>;
+			// A bucket streams one event per internal output; scope to just ours.
+			if (this.opts.outputName !== undefined && meta.output_name !== this.opts.outputName) {
+				return;
+			}
 			// The wire field is the misspelled `bucked_id`; expose a corrected alias.
 			if (meta.bucket_id === undefined && meta.bucked_id !== undefined) {
 				meta.bucket_id = meta.bucked_id;

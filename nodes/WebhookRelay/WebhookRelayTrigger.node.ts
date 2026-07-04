@@ -12,9 +12,15 @@ import {
 	buildAuth,
 	ensureBucket,
 	ensureInput,
+	ensureOutput,
 	inputEndpointUrl,
 	startBucketSubscription,
 } from './GenericFunctions';
+
+/** Name used for both our input and our internal output on the bucket. */
+const RESOURCE_NAME = 'n8n';
+/** Internal (localhost) output destination — never HTTP-forwarded; we consume it over the socket. */
+const OUTPUT_DESTINATION = 'http://localhost';
 
 export class WebhookRelayTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -40,7 +46,7 @@ export class WebhookRelayTrigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'On activation this node creates the Webhook Relay bucket and input if they do not exist (and reuses them otherwise), then opens an outbound WebSocket to receive events. Deactivating only closes the socket — nothing is deleted. n8n needs no public URL, tunnel or agent; the input URL is logged and shown in the dashboard.',
+					'On activation this node creates a Webhook Relay bucket, input and an internal output (destination http://localhost) if they do not exist — and reuses them otherwise — then opens an outbound WebSocket scoped to that output. Tune per-output options like throttling on the output in the Webhook Relay dashboard; the node never overwrites them. Deactivating only closes the socket — nothing is deleted. n8n needs no public URL, tunnel or agent.',
 				name: 'notice',
 				type: 'notice',
 				default: '',
@@ -185,10 +191,16 @@ export class WebhookRelayTrigger implements INodeType {
 
 		// 2. Public input endpoint with the sender-facing response. Find-or-create
 		//    so the URL stays stable across re-activations.
-		const input = await ensureInput.call(this, bucket.id as string, 'n8n', {
+		const input = await ensureInput.call(this, bucket.id as string, RESOURCE_NAME, {
 			statusCode: responseStatusCode,
 			body: responseBody,
 		});
+
+		// 3. Internal output we subscribe to. The bucket streams one event per
+		//    output; scoping to our own output keeps us isolated from any other
+		//    outputs on the bucket and lets per-output config (e.g. throttling)
+		//    apply. Find-or-create and never touched on reuse.
+		await ensureOutput.call(this, bucket.id as string, RESOURCE_NAME, OUTPUT_DESTINATION);
 
 		const credentials = await this.getCredentials('webhookRelayApi');
 		const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
@@ -197,8 +209,8 @@ export class WebhookRelayTrigger implements INodeType {
 			`[Webhook Relay] Send webhooks to: ${publicUrl} (bucket "${bucket.name}")`,
 		);
 
-		// 3. Receive over an outbound WebSocket. On deactivation only the socket is
-		//    closed — the bucket and input are left in place.
-		return startBucketSubscription(this, bucket.id as string);
+		// 4. Receive over an outbound WebSocket, scoped to our output. On
+		//    deactivation only the socket is closed — nothing is deleted.
+		return startBucketSubscription(this, bucket.id as string, RESOURCE_NAME);
 	}
 }

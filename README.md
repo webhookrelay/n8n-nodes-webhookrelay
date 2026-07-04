@@ -65,6 +65,17 @@ build the workflow, then stops — that's expected. **Activate** the workflow to
 receive events continuously. The connection replies to server pings, sends its
 own keepalive ping every 15 s, and reconnects immediately if it drops.
 
+**Per-output delivery:** the node also creates an internal **output** named
+`n8n` (destination `http://localhost`, so nothing is ever HTTP-forwarded to it)
+and subscribes to just that output. This isolates the node from any other
+outputs on the bucket and lets you tune per-output options in the Webhook Relay
+dashboard. Note: **throttling** does pace socket delivery, but **durable
+delivery does not** make the socket loss-proof — a passive socket subscriber
+that's disconnected when an event is published won't receive it later. For
+guaranteed delivery use the durable pull queue (`GET /v1/events`) instead. The
+output is find-or-created and never modified on reuse, so your dashboard
+settings are preserved.
+
 ![Webhook Relay Trigger parameters](docs/images/02-trigger-config.png)
 
 See the full walkthrough with screenshots in
