@@ -81,6 +81,51 @@ settings are preserved.
 See the full walkthrough with screenshots in
 **[docs/testing-with-n8n.md](docs/testing-with-n8n.md)**.
 
+## Email Trigger
+
+Webhook Relay Email Trigger node allows you to trigger a workflow from inbound email sent to a generated address. Once you configure the node,
+you will see your unique inbox address in the node's configuration. You can then send an email to this address to trigger the workflow.
+
+![Send test email to the inbox address](docs/images/send-test-email.png)
+
+Then, you can view it as well in the Webhook Relay's console:
+
+![Viewing email payloads](docs/images/webhookrelay-email-debug.png)
+
+with example payload:
+
+```json
+{
+    "from": "karolis@rusenas.dev",
+    "from_name": "Karolis Rusenas",
+    "recipient": "04f2bfc6-f474-419d-8f64-f59c9ffe8f46@in.webhookrelay-mail.com",
+    "to": [
+        "04f2bfc6-f474-419d-8f64-f59c9ffe8f46@in.webhookrelay-mail.com"
+    ],
+    "subject": "hello n8n",
+    "date": "Sat, 4 Jul 2026 15:08:13 +0400",
+    "message_id": "022E2840-C933-4FD3-9608-CAF6CC6A5772@rusenas.dev",
+    "text": "Hello,\r\n\r\nTesting n8n integration\r\n",
+    "headers": {        
+        "Content-Transfer-Encoding": "7bit",
+        "Content-Type": "text/plain; charset=us-ascii",
+        "Date": "Sat, 4 Jul 2026 15:08:13 +0400",
+        "From": "Karolis Rusenas <karolis@rusenas.dev>",
+        "Message-Id": "<022E2840-C933-4FD3-9608-CAF6CC6A5772@rusenas.dev>",
+        "Mime-Version": "1.0 (Mac OS X Mail 16.0 \\(3826.700.81\\))",
+        "Received-Spf": "pass (mx.cloudflare.net: domain of karolis@rusenas.dev designates 2a00:1450:4864:20::334 as permitted sender) receiver=mx.cloudflare.net; client-ip=2a00:1450:4864:20::334; envelope-from=\"karolis@rusenas.dev\"; helo=mail-wm1-x334.google.com;",
+        "Return-Path": "<karolis@rusenas.dev>",
+        "Subject": "hello n8n",
+        "To": "04f2bfc6-f474-419d-8f64-f59c9ffe8f46@in.webhookrelay-mail.com",       
+        "X-Mailer": "Apple Mail (2.3826.700.81)",
+        "X-Received": "by 2002:a05:600c:4e14:b0:493:d282:8298 with SMTP id 5b1f17b1804b1-493d28283f9mr22053095e9.16.1783163305456; Sat, 04 Jul 2026 04:08:25 -0700 (PDT)"
+    },
+    "spf": "none",
+    "dkim": "pass",
+    "dmarc": "none"
+}
+```
+
 ## Local development
 
 ```bash
