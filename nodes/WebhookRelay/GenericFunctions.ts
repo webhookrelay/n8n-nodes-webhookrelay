@@ -130,22 +130,18 @@ export function buildAuth(
 }
 
 /**
- * The public URL a provider sends webhooks to for a given input. On the Webhook
- * Relay SaaS this is the short per-input host `https://<id>.hooks.webhookrelay.com`;
- * for a self-hosted/unknown base URL it falls back to the always-valid API path
- * form `<baseUrl>/v1/webhooks/<id>`.
+ * The public URL a provider sends webhooks to for a given input. The server
+ * assigns each input a domain (a generated `<slug>.hooks.webhookrelay.com`
+ * host, or one the user reserved) in `custom_domain` — the input ID is NOT a
+ * valid `hooks.` subdomain. Without a domain, the always-valid API path form
+ * `<baseUrl>/v1/webhooks/<id>` applies.
  */
-export function inputEndpointUrl(baseUrl: string, inputId: string): string {
-	let host: string;
-	try {
-		host = new URL(baseUrl).host;
-	} catch {
-		host = 'my.webhookrelay.com';
+export function inputEndpointUrl(baseUrl: string, input: IDataObject): string {
+	const domain = input.custom_domain as string | undefined;
+	if (domain) {
+		return `https://${domain}${(input.path_prefix as string | undefined) ?? ''}`;
 	}
-	if (host === 'webhookrelay.com' || host.endsWith('.webhookrelay.com')) {
-		return `https://${inputId}.hooks.webhookrelay.com`;
-	}
-	return `${baseUrl.replace(/\/+$/, '')}/v1/webhooks/${inputId}`;
+	return `${baseUrl.replace(/\/+$/, '')}/v1/webhooks/${input.id}`;
 }
 
 /**
@@ -180,12 +176,23 @@ export async function ensureInput(
 		);
 		return existing;
 	}
-	return (await webhookRelayApiRequest.call(
+	const created = (await webhookRelayApiRequest.call(
 		this,
 		'POST',
 		`/v1/buckets/${bucketId}/inputs`,
 		body,
 	)) as IDataObject;
+	if (created?.custom_domain) return created;
+	// the server assigns the input's public domain — re-read the bucket to pick it up
+	const refreshed = (await webhookRelayApiRequest.call(
+		this,
+		'GET',
+		`/v1/buckets/${bucketId}`,
+	)) as IDataObject;
+	const found = ((refreshed.inputs as IDataObject[] | undefined) ?? []).find(
+		(i) => i.id === created.id,
+	);
+	return found ?? created;
 }
 
 /**

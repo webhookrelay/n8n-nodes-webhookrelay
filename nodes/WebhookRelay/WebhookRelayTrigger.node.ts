@@ -164,7 +164,7 @@ export class WebhookRelayTrigger implements INodeType {
 
 				const credentials = await this.getCredentials('webhookRelayApi');
 				const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
-				const url = inputEndpointUrl(baseUrl, input.id as string);
+				const url = inputEndpointUrl(baseUrl, input);
 				return [{ name: url, value: url }];
 			},
 		},
@@ -204,7 +204,7 @@ export class WebhookRelayTrigger implements INodeType {
 
 		const credentials = await this.getCredentials('webhookRelayApi');
 		const baseUrl = (credentials.baseUrl as string) || 'https://my.webhookrelay.com';
-		const publicUrl = inputEndpointUrl(baseUrl, input.id as string);
+		const publicUrl = inputEndpointUrl(baseUrl, input);
 		this.logger.info(
 			`[Webhook Relay] Send webhooks to: ${publicUrl} (bucket "${bucket.name}")`,
 		);
