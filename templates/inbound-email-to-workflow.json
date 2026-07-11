@@ -1,0 +1,208 @@
+{
+  "name": "Turn inbound email into a workflow (no mail server) — Webhook Relay",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📧 Turn inbound email into a workflow — no mail server\n\n**Who's it for**\nTeams that want to trigger automations from **email** (support inboxes, alerts, order confirmations, parsing) without running or exposing a mail server — and without exposing n8n itself.\n\n**What it does**\n[Webhook Relay](https://webhookrelay.com) gives you a real inbound email address, parses each message to JSON (from, subject, text/html, attachments, and SPF/DKIM/DMARC results) and streams it to n8n over an **outbound WebSocket**. n8n stays on localhost / behind NAT and never listens for inbound connections.\n\n**How it works**\n1. **Email Trigger** receives the parsed message over the socket.\n2. **Parse email** pulls out the fields you care about.\n3. **Passed DKIM check?** verifies the sender isn't spoofed.\n4. **Forward verified email** POSTs it to your endpoint; unverified mail is flagged.\n\n**Setup (2 min)**\n1. Install the community node: **Settings → Community Nodes → Install** → `n8n-nodes-webhookrelay`.\n2. Add a **Webhook Relay API** credential — API key from [my.webhookrelay.com/tokens](https://my.webhookrelay.com/tokens).\n3. Open the trigger's **Email Address** field to load your inbound address.\n4. (Optional) restrict **Allowed Senders**, then **Activate** and email that address.",
+        "height": 520,
+        "width": 640,
+        "color": 4
+      },
+      "id": "bb000000-0000-4000-8000-000000000001",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-160, 60]
+    },
+    {
+      "parameters": {
+        "content": "### 1 · Receive email — no mail server\nOpen **Email Address** on this node to get your inbound address. Every message sent to it is parsed to JSON and streamed here.",
+        "height": 300,
+        "width": 260,
+        "color": 5
+      },
+      "id": "bb000000-0000-4000-8000-000000000002",
+      "name": "Section: receive",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [540, 640]
+    },
+    {
+      "parameters": {
+        "content": "### 2 · Parse & verify\n**Parse email** extracts the useful fields. **Passed DKIM check?** is an example anti-spoofing gate — legitimate senders that sign their mail pass; forged senders don't.\n\n✏️ Adjust the check (or use SPF/DMARC) to fit your senders.",
+        "height": 440,
+        "width": 520,
+        "color": 6
+      },
+      "id": "bb000000-0000-4000-8000-000000000003",
+      "name": "Section: parse",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [840, 560]
+    },
+    {
+      "parameters": {
+        "content": "### 3 · Act — edit these\n✏️ Point **Forward verified email** at your own endpoint (Slack/Discord webhook, a ticketing API, Google Sheets…). Unverified mail hits a No-Op — replace it with your own quarantine/alert step.",
+        "height": 440,
+        "width": 340,
+        "color": 7
+      },
+      "id": "bb000000-0000-4000-8000-000000000004",
+      "name": "Section: act",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1400, 560]
+    },
+    {
+      "parameters": {
+        "bucket": "n8n-email",
+        "allowedSenders": "",
+        "dropAttachments": false
+      },
+      "id": "bb000000-0000-4000-8000-000000000010",
+      "name": "Webhook Relay Email Trigger",
+      "type": "n8n-nodes-webhookrelay.webhookRelayEmailTrigger",
+      "typeVersion": 1,
+      "position": [620, 760],
+      "credentials": {
+        "webhookRelayApi": {
+          "id": "1",
+          "name": "Webhook Relay account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1000000-0000-4000-8000-000000000001",
+              "name": "from",
+              "value": "={{ $json.body.from }}",
+              "type": "string"
+            },
+            {
+              "id": "e1000000-0000-4000-8000-000000000002",
+              "name": "fromName",
+              "value": "={{ $json.body.from_name }}",
+              "type": "string"
+            },
+            {
+              "id": "e1000000-0000-4000-8000-000000000003",
+              "name": "subject",
+              "value": "={{ $json.body.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "e1000000-0000-4000-8000-000000000004",
+              "name": "text",
+              "value": "={{ $json.body.text }}",
+              "type": "string"
+            },
+            {
+              "id": "e1000000-0000-4000-8000-000000000005",
+              "name": "dkim",
+              "value": "={{ $json.body.dkim }}",
+              "type": "string"
+            },
+            {
+              "id": "e1000000-0000-4000-8000-000000000006",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bb000000-0000-4000-8000-000000000011",
+      "name": "Parse email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 760]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "d1000000-0000-4000-8000-000000000001",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.dkim }}",
+              "rightValue": "pass"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bb000000-0000-4000-8000-000000000012",
+      "name": "Passed DKIM check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1180, 760]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://example.com/your-endpoint",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "from", "value": "={{ $json.from }}" },
+            { "name": "fromName", "value": "={{ $json.fromName }}" },
+            { "name": "subject", "value": "={{ $json.subject }}" },
+            { "name": "text", "value": "={{ $json.text }}" },
+            { "name": "receivedAt", "value": "={{ $json.receivedAt }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bb000000-0000-4000-8000-000000000013",
+      "name": "Forward verified email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 660]
+    },
+    {
+      "parameters": {},
+      "id": "bb000000-0000-4000-8000-000000000014",
+      "name": "Flag: failed verification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1500, 860]
+    }
+  ],
+  "connections": {
+    "Webhook Relay Email Trigger": {
+      "main": [[{ "node": "Parse email", "type": "main", "index": 0 }]]
+    },
+    "Parse email": {
+      "main": [[{ "node": "Passed DKIM check?", "type": "main", "index": 0 }]]
+    },
+    "Passed DKIM check?": {
+      "main": [
+        [{ "node": "Forward verified email", "type": "main", "index": 0 }],
+        [{ "node": "Flag: failed verification", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

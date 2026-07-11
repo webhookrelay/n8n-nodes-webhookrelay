@@ -1,0 +1,146 @@
+{
+  "name": "Inbound email to Discord (no mail server) — Webhook Relay",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📧→💬 Inbound email to Discord — no mail server\n\n**Who's it for**\nCommunities and teams that want new email (alerts, sign-ups, support) to land in a **Discord** channel — without running or exposing a mail server, and without exposing n8n to the internet.\n\n**What it does**\n[Webhook Relay](https://webhookrelay.com) gives you a real inbound email address, parses each message to JSON, and streams it to n8n over an **outbound WebSocket**. This workflow posts a tidy summary to Discord.\n\n**How it works**\n1. **Email Trigger** receives the parsed message over the socket.\n2. **Parse email** pulls out from / subject / text.\n3. **Post to Discord** sends it to your channel via a webhook.\n\n**Setup (2 min)**\n1. Install `n8n-nodes-webhookrelay` (**Settings → Community Nodes → Install**).\n2. Add a **Webhook Relay API** credential — key from [my.webhookrelay.com/tokens](https://my.webhookrelay.com/tokens).\n3. Open the trigger's **Email Address** field to load your inbound address. (Optional) set **Allowed Senders**.\n4. In Discord, create a channel **Webhook** and add it as the Discord node's credential. **Activate**, then email the address.",
+        "height": 500,
+        "width": 640,
+        "color": 4
+      },
+      "id": "dd000000-0000-4000-8000-000000000001",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-160, 60]
+    },
+    {
+      "parameters": {
+        "content": "### 1 · Receive email — no mail server\nOpen **Email Address** on this node to get your inbound address. (Optional) restrict **Allowed Senders**.",
+        "height": 300,
+        "width": 260,
+        "color": 5
+      },
+      "id": "dd000000-0000-4000-8000-000000000002",
+      "name": "Section: receive",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [540, 620]
+    },
+    {
+      "parameters": {
+        "content": "### 2 · Parse\nExtract the fields you want in the Discord message.",
+        "height": 300,
+        "width": 240,
+        "color": 6
+      },
+      "id": "dd000000-0000-4000-8000-000000000003",
+      "name": "Section: parse",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [840, 620]
+    },
+    {
+      "parameters": {
+        "content": "### 3 · Notify\n✏️ Add a Discord channel **Webhook** credential to this node. Edit the message content to taste.",
+        "height": 300,
+        "width": 300,
+        "color": 7
+      },
+      "id": "dd000000-0000-4000-8000-000000000004",
+      "name": "Section: notify",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1140, 620]
+    },
+    {
+      "parameters": {
+        "bucket": "n8n-email",
+        "allowedSenders": "",
+        "dropAttachments": false
+      },
+      "id": "dd000000-0000-4000-8000-000000000010",
+      "name": "Webhook Relay Email Trigger",
+      "type": "n8n-nodes-webhookrelay.webhookRelayEmailTrigger",
+      "typeVersion": 1,
+      "position": [620, 760],
+      "credentials": {
+        "webhookRelayApi": {
+          "id": "1",
+          "name": "Webhook Relay account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e3000000-0000-4000-8000-000000000001",
+              "name": "from",
+              "value": "={{ $json.body.from }}",
+              "type": "string"
+            },
+            {
+              "id": "e3000000-0000-4000-8000-000000000002",
+              "name": "fromName",
+              "value": "={{ $json.body.from_name }}",
+              "type": "string"
+            },
+            {
+              "id": "e3000000-0000-4000-8000-000000000003",
+              "name": "subject",
+              "value": "={{ $json.body.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "e3000000-0000-4000-8000-000000000004",
+              "name": "text",
+              "value": "={{ $json.body.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dd000000-0000-4000-8000-000000000011",
+      "name": "Parse email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 760]
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=📧 **New email** from {{ $json.fromName }} <{{ $json.from }}>\n**Subject:** {{ $json.subject }}\n\n{{ $json.text }}",
+        "options": {}
+      },
+      "id": "dd000000-0000-4000-8000-000000000012",
+      "name": "Post to Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1220, 760],
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "3",
+          "name": "Discord Webhook"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Relay Email Trigger": {
+      "main": [[{ "node": "Parse email", "type": "main", "index": 0 }]]
+    },
+    "Parse email": {
+      "main": [[{ "node": "Post to Discord", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

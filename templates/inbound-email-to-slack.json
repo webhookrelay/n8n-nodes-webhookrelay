@@ -1,0 +1,153 @@
+{
+  "name": "Inbound email to Slack (no mail server) — Webhook Relay",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📧→💬 Inbound email to Slack — no mail server\n\n**Who's it for**\nTeams that want new email (support requests, alerts, form replies) to land in a **Slack** channel — without running or exposing a mail server, and without exposing n8n to the internet.\n\n**What it does**\n[Webhook Relay](https://webhookrelay.com) gives you a real inbound email address, parses each message to JSON, and streams it to n8n over an **outbound WebSocket**. This workflow posts a tidy summary to Slack.\n\n**How it works**\n1. **Email Trigger** receives the parsed message over the socket.\n2. **Parse email** pulls out from / subject / text.\n3. **Post to Slack** sends it to your channel.\n\n**Setup (2 min)**\n1. Install `n8n-nodes-webhookrelay` (**Settings → Community Nodes → Install**).\n2. Add a **Webhook Relay API** credential — key from [my.webhookrelay.com/tokens](https://my.webhookrelay.com/tokens).\n3. Open the trigger's **Email Address** field to load your inbound address. (Optional) set **Allowed Senders** to lock it down.\n4. Connect your **Slack** credential and pick a channel on the Slack node. **Activate**, then email the address.",
+        "height": 500,
+        "width": 640,
+        "color": 4
+      },
+      "id": "cc000000-0000-4000-8000-000000000001",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-160, 60]
+    },
+    {
+      "parameters": {
+        "content": "### 1 · Receive email — no mail server\nOpen **Email Address** on this node to get your inbound address. (Optional) restrict **Allowed Senders**.",
+        "height": 300,
+        "width": 260,
+        "color": 5
+      },
+      "id": "cc000000-0000-4000-8000-000000000002",
+      "name": "Section: receive",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [540, 620]
+    },
+    {
+      "parameters": {
+        "content": "### 2 · Parse\nExtract the fields you want in the Slack message.",
+        "height": 300,
+        "width": 240,
+        "color": 6
+      },
+      "id": "cc000000-0000-4000-8000-000000000003",
+      "name": "Section: parse",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [840, 620]
+    },
+    {
+      "parameters": {
+        "content": "### 3 · Notify\n✏️ Connect your **Slack** credential and pick the channel. Edit the message text to taste.",
+        "height": 300,
+        "width": 300,
+        "color": 7
+      },
+      "id": "cc000000-0000-4000-8000-000000000004",
+      "name": "Section: notify",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1140, 620]
+    },
+    {
+      "parameters": {
+        "bucket": "n8n-email",
+        "allowedSenders": "",
+        "dropAttachments": false
+      },
+      "id": "cc000000-0000-4000-8000-000000000010",
+      "name": "Webhook Relay Email Trigger",
+      "type": "n8n-nodes-webhookrelay.webhookRelayEmailTrigger",
+      "typeVersion": 1,
+      "position": [620, 760],
+      "credentials": {
+        "webhookRelayApi": {
+          "id": "1",
+          "name": "Webhook Relay account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e2000000-0000-4000-8000-000000000001",
+              "name": "from",
+              "value": "={{ $json.body.from }}",
+              "type": "string"
+            },
+            {
+              "id": "e2000000-0000-4000-8000-000000000002",
+              "name": "fromName",
+              "value": "={{ $json.body.from_name }}",
+              "type": "string"
+            },
+            {
+              "id": "e2000000-0000-4000-8000-000000000003",
+              "name": "subject",
+              "value": "={{ $json.body.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "e2000000-0000-4000-8000-000000000004",
+              "name": "text",
+              "value": "={{ $json.body.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc000000-0000-4000-8000-000000000011",
+      "name": "Parse email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 760]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": ""
+        },
+        "text": "=📧 *New email* from {{ $json.fromName }} <{{ $json.from }}>\n*Subject:* {{ $json.subject }}\n\n{{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "cc000000-0000-4000-8000-000000000012",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1220, 760],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "2",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Relay Email Trigger": {
+      "main": [[{ "node": "Parse email", "type": "main", "index": 0 }]]
+    },
+    "Parse email": {
+      "main": [[{ "node": "Post to Slack", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
