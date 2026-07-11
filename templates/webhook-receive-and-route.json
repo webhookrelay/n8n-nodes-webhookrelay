@@ -1,0 +1,252 @@
+{
+  "name": "Receive & route webhooks in self-hosted n8n (no public IP) — Webhook Relay",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📥 Receive & route webhooks in self-hosted n8n — no public IP\n\n**Who's it for**\nAnyone running n8n on localhost, a NAS, or behind a firewall/NAT who needs to receive webhooks (Stripe, GitHub, Shopify, your own apps) **without exposing n8n to the internet** — no tunnel, no port-forwarding, no reverse proxy.\n\n**What it does**\n[Webhook Relay](https://webhookrelay.com) gives your provider a stable public URL, authenticates the sender and answers it for you, then streams each event to n8n over an **outbound WebSocket** that n8n opens itself. n8n never listens for inbound connections.\n\n**How it works**\n1. **Webhook Relay Trigger** receives the event over the socket.\n2. **Normalize event** maps it to a small, consistent shape.\n3. **Route by event type** sends each type down its own branch.\n4. **Forward** POSTs to your endpoint (a Slack/Discord incoming webhook or any API); unmatched events are ignored.\n\n**Setup (2 min)**\n1. Install the community node: **Settings → Community Nodes → Install** → `n8n-nodes-webhookrelay`.\n2. Add a **Webhook Relay API** credential — API key from [my.webhookrelay.com/tokens](https://my.webhookrelay.com/tokens).\n3. Open the trigger's **Public URL** field to load the URL, and give it to your provider.\n4. **Activate** the workflow.",
+        "height": 520,
+        "width": 640,
+        "color": 4
+      },
+      "id": "aa000000-0000-4000-8000-000000000001",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-160, 60]
+    },
+    {
+      "parameters": {
+        "content": "### 1 · Receive — no public IP\nEvents arrive over an outbound WebSocket. Open **Public URL** on this node to get the URL for your provider.",
+        "height": 300,
+        "width": 260,
+        "color": 5
+      },
+      "id": "aa000000-0000-4000-8000-000000000002",
+      "name": "Section: receive",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [540, 640]
+    },
+    {
+      "parameters": {
+        "content": "### 2 · Normalize & route\n**Normalize event** flattens the payload to a tidy shape. **Route by event type** then sends each type to its own branch.\n\n✏️ Replace the example event names (`created` / `deleted`) with your provider's own (e.g. GitHub `push`, Stripe `payment_intent.succeeded`).",
+        "height": 300,
+        "width": 520,
+        "color": 6
+      },
+      "id": "aa000000-0000-4000-8000-000000000003",
+      "name": "Section: route",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [840, 640]
+    },
+    {
+      "parameters": {
+        "content": "### 3 · Act — edit these\n✏️ Point each **HTTP Request** at your own endpoint (a Slack/Discord incoming webhook, or any API). The **Other events** branch is dropped with a No-Op — replace it with your own handling.",
+        "height": 560,
+        "width": 360,
+        "color": 7
+      },
+      "id": "aa000000-0000-4000-8000-000000000004",
+      "name": "Section: act",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1400, 500]
+    },
+    {
+      "parameters": {
+        "bucket": "n8n",
+        "authentication": "none",
+        "responseStatusCode": 200,
+        "responseBody": "{\"ok\":true}"
+      },
+      "id": "aa000000-0000-4000-8000-000000000010",
+      "name": "Webhook Relay Trigger",
+      "type": "n8n-nodes-webhookrelay.webhookRelayTrigger",
+      "typeVersion": 1,
+      "position": [620, 760],
+      "credentials": {
+        "webhookRelayApi": {
+          "id": "1",
+          "name": "Webhook Relay account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1000000-0000-4000-8000-000000000001",
+              "name": "eventType",
+              "value": "={{ $json.body.type ?? $json.body.event ?? 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "f1000000-0000-4000-8000-000000000002",
+              "name": "summary",
+              "value": "={{ 'Webhook received: ' + ($json.body.type ?? $json.body.event ?? 'event') }}",
+              "type": "string"
+            },
+            {
+              "id": "f1000000-0000-4000-8000-000000000003",
+              "name": "method",
+              "value": "={{ $json.method }}",
+              "type": "string"
+            },
+            {
+              "id": "f1000000-0000-4000-8000-000000000004",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aa000000-0000-4000-8000-000000000011",
+      "name": "Normalize event",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 760]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c1000000-0000-4000-8000-000000000001",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "created"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Created"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c1000000-0000-4000-8000-000000000002",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "deleted"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Deleted"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "aa000000-0000-4000-8000-000000000012",
+      "name": "Route by event type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1160, 760]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://example.com/your-endpoint",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "event", "value": "={{ $json.eventType }}" },
+            { "name": "summary", "value": "={{ $json.summary }}" },
+            { "name": "receivedAt", "value": "={{ $json.receivedAt }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aa000000-0000-4000-8000-000000000013",
+      "name": "Forward: created event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://example.com/your-endpoint",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "event", "value": "={{ $json.eventType }}" },
+            { "name": "summary", "value": "={{ $json.summary }}" },
+            { "name": "receivedAt", "value": "={{ $json.receivedAt }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aa000000-0000-4000-8000-000000000014",
+      "name": "Forward: deleted event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 780]
+    },
+    {
+      "parameters": {},
+      "id": "aa000000-0000-4000-8000-000000000015",
+      "name": "Ignore other events",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1500, 960]
+    }
+  ],
+  "connections": {
+    "Webhook Relay Trigger": {
+      "main": [[{ "node": "Normalize event", "type": "main", "index": 0 }]]
+    },
+    "Normalize event": {
+      "main": [[{ "node": "Route by event type", "type": "main", "index": 0 }]]
+    },
+    "Route by event type": {
+      "main": [
+        [{ "node": "Forward: created event", "type": "main", "index": 0 }],
+        [{ "node": "Forward: deleted event", "type": "main", "index": 0 }],
+        [{ "node": "Ignore other events", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
