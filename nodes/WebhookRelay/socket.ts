@@ -1,5 +1,5 @@
 /**
- * Minimal, dependency-free Webhook Relay WebSocket client.
+ * Minimal Webhook Relay WebSocket client with zero bundled dependencies.
  *
  * Uses the runtime's built-in global `WebSocket` (Node.js >= 22, which n8n's
  * official images ship). Handles the authenticate -> subscribe handshake,
@@ -13,9 +13,14 @@
  * tears the whole subscription down on any single write error, so fast recovery
  * matters), then backs off if the server stays unreachable.
  *
- * Kept intentionally free of runtime dependencies so the package stays
- * zero-dependency (eligible for n8n community-node verification).
+ * Scheduling uses n8n-workflow's `sleep` in guarded async loops rather than
+ * `setInterval`/`setTimeout`, and the WebSocket constructor is read from the
+ * bare global rather than `globalThis` — verified community nodes are not
+ * allowed to touch those globals. `n8n-workflow` is a peer dependency provided
+ * by the host, so the package still ships zero bundled runtime dependencies.
  */
+
+import { sleep } from 'n8n-workflow';
 
 /** Client keepalive ping interval (ms). Server pings every ~21s independently. */
 const PING_INTERVAL_MS = 15000;
@@ -34,6 +39,14 @@ interface WebSocketLike {
 interface WebSocketCtor {
 	new (url: string): WebSocketLike;
 }
+
+/**
+ * The runtime's built-in global `WebSocket` (Node.js >= 22). Declared so we can
+ * reference the global directly instead of reaching through `globalThis`, which
+ * verified community nodes may not use. Erased at compile time; the running
+ * value is whatever the Node runtime provides (or `undefined` on older Node).
+ */
+declare const WebSocket: WebSocketCtor | undefined;
 
 /** A webhook delivered over the WebSocket in real time. */
 export interface WebhookRelayEvent {
@@ -69,13 +82,12 @@ export interface SocketOptions {
 }
 
 function resolveWebSocketCtor(): WebSocketCtor {
-	const ctor = (globalThis as { WebSocket?: unknown }).WebSocket;
-	if (typeof ctor !== 'function') {
+	if (typeof WebSocket !== 'function') {
 		throw new Error(
 			'No global WebSocket available. Run n8n on Node.js >= 22 (its official images already do).',
 		);
 	}
-	return ctor as unknown as WebSocketCtor;
+	return WebSocket;
 }
 
 /** Derive the `wss://…/v1/socket` URL from the REST base URL. */
@@ -96,8 +108,9 @@ function toError(value: unknown): Error {
 export class WebhookRelaySocket {
 	private ws: WebSocketLike | null = null;
 	private closed = false;
-	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-	private pingTimer: ReturnType<typeof setInterval> | null = null;
+	private reconnecting = false;
+	/** Monotonic token; incrementing it stops the currently-running keepalive loop. */
+	private pingToken = 0;
 	private reconnectAttempts = 0;
 
 	constructor(private readonly opts: SocketOptions) {}
@@ -107,11 +120,9 @@ export class WebhookRelaySocket {
 	}
 
 	close(): void {
+		// Set first: pending sleep loops (keepalive, reconnect) all check `closed`
+		// after waking and bail out, so no timer handle needs clearing.
 		this.closed = true;
-		if (this.reconnectTimer) {
-			clearTimeout(this.reconnectTimer);
-			this.reconnectTimer = null;
-		}
 		this.teardown(1000, 'client closed');
 	}
 
@@ -136,7 +147,7 @@ export class WebhookRelaySocket {
 		ws.onclose = () => {
 			this.stopPing();
 			this.ws = null;
-			if (!this.closed) this.scheduleReconnect();
+			if (!this.closed) void this.scheduleReconnect();
 		};
 	}
 
@@ -191,31 +202,41 @@ export class WebhookRelaySocket {
 		}
 	}
 
-	private scheduleReconnect(): void {
-		if (this.closed || this.reconnectTimer) return;
+	private async scheduleReconnect(): Promise<void> {
+		if (this.closed || this.reconnecting) return;
+		this.reconnecting = true;
 		const attempt = this.reconnectAttempts++;
 		// Reconnect immediately on the first drop after a healthy connection; if
 		// reconnects keep failing (server unreachable), back off exponentially up
 		// to a cap. The counter is reset to 0 the moment we re-authenticate.
 		const delay =
 			attempt === 0 ? 0 : Math.min(1000 * 2 ** (attempt - 1), MAX_RECONNECT_DELAY_MS);
-		this.reconnectTimer = setTimeout(() => {
-			this.reconnectTimer = null;
-			this.connect();
-		}, delay);
+		await sleep(delay);
+		this.reconnecting = false;
+		if (!this.closed) this.connect();
 	}
 
 	private startPing(): void {
-		this.stopPing();
-		this.pingTimer = setInterval(() => {
-			this.send({ action: 'ping' });
-		}, PING_INTERVAL_MS);
+		// Supersede any running loop and start a fresh one bound to a new token.
+		const token = ++this.pingToken;
+		void this.keepAlive(token);
 	}
 
 	private stopPing(): void {
-		if (this.pingTimer) {
-			clearInterval(this.pingTimer);
-			this.pingTimer = null;
+		// Bump the token so the running keepalive loop stops at its next check.
+		this.pingToken++;
+	}
+
+	/**
+	 * Send a client keepalive ping every {@link PING_INTERVAL_MS} until this loop
+	 * is superseded (its `token` no longer current) or the socket is closed.
+	 * Replaces a `setInterval`, which verified community nodes may not use.
+	 */
+	private async keepAlive(token: number): Promise<void> {
+		while (this.pingToken === token && !this.closed) {
+			await sleep(PING_INTERVAL_MS);
+			if (this.pingToken !== token || this.closed) return;
+			this.send({ action: 'ping' });
 		}
 	}
 
