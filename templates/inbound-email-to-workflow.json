@@ -12,7 +12,10 @@
       "name": "Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-160, 60]
+      "position": [
+        -160,
+        64
+      ]
     },
     {
       "parameters": {
@@ -25,7 +28,10 @@
       "name": "Section: receive",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [540, 640]
+      "position": [
+        544,
+        352
+      ]
     },
     {
       "parameters": {
@@ -38,7 +44,10 @@
       "name": "Section: parse",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [840, 560]
+      "position": [
+        864,
+        208
+      ]
     },
     {
       "parameters": {
@@ -51,7 +60,10 @@
       "name": "Section: act",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [1400, 560]
+      "position": [
+        1440,
+        208
+      ]
     },
     {
       "parameters": {
@@ -63,7 +75,10 @@
       "name": "Webhook Relay Email Trigger",
       "type": "n8n-nodes-webhookrelay.webhookRelayEmailTrigger",
       "typeVersion": 1,
-      "position": [620, 760],
+      "position": [
+        624,
+        768
+      ],
       "credentials": {
         "webhookRelayApi": {
           "id": "1",
@@ -119,7 +134,10 @@
       "name": "Parse email",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [900, 760]
+      "position": [
+        912,
+        768
+      ]
     },
     {
       "parameters": {
@@ -149,7 +167,10 @@
       "name": "Passed DKIM check?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1180, 760]
+      "position": [
+        1184,
+        768
+      ]
     },
     {
       "parameters": {
@@ -160,11 +181,26 @@
         "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
-            { "name": "from", "value": "={{ $json.from }}" },
-            { "name": "fromName", "value": "={{ $json.fromName }}" },
-            { "name": "subject", "value": "={{ $json.subject }}" },
-            { "name": "text", "value": "={{ $json.text }}" },
-            { "name": "receivedAt", "value": "={{ $json.receivedAt }}" }
+            {
+              "name": "from",
+              "value": "={{ $json.from }}"
+            },
+            {
+              "name": "fromName",
+              "value": "={{ $json.fromName }}"
+            },
+            {
+              "name": "subject",
+              "value": "={{ $json.subject }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "receivedAt",
+              "value": "={{ $json.receivedAt }}"
+            }
           ]
         },
         "options": {}
@@ -173,7 +209,10 @@
       "name": "Forward verified email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1500, 660]
+      "position": [
+        1504,
+        672
+      ]
     },
     {
       "parameters": {},
@@ -181,20 +220,51 @@
       "name": "Flag: failed verification",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1500, 860]
+      "position": [
+        1504,
+        864
+      ]
     }
   ],
   "connections": {
     "Webhook Relay Email Trigger": {
-      "main": [[{ "node": "Parse email", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse email": {
-      "main": [[{ "node": "Passed DKIM check?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Passed DKIM check?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Passed DKIM check?": {
       "main": [
-        [{ "node": "Forward verified email", "type": "main", "index": 0 }],
-        [{ "node": "Flag: failed verification", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Forward verified email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag: failed verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

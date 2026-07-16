@@ -12,7 +12,10 @@
       "name": "Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-160, 60]
+      "position": [
+        -160,
+        64
+      ]
     },
     {
       "parameters": {
@@ -25,7 +28,10 @@
       "name": "Section: receive",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [540, 640]
+      "position": [
+        544,
+        272
+      ]
     },
     {
       "parameters": {
@@ -38,7 +44,10 @@
       "name": "Section: route",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [840, 640]
+      "position": [
+        880,
+        272
+      ]
     },
     {
       "parameters": {
@@ -51,7 +60,10 @@
       "name": "Section: act",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [1400, 500]
+      "position": [
+        1456,
+        16
+      ]
     },
     {
       "parameters": {
@@ -64,7 +76,10 @@
       "name": "Webhook Relay Trigger",
       "type": "n8n-nodes-webhookrelay.webhookRelayTrigger",
       "typeVersion": 1,
-      "position": [620, 760],
+      "position": [
+        624,
+        768
+      ],
       "credentials": {
         "webhookRelayApi": {
           "id": "1",
@@ -108,7 +123,10 @@
       "name": "Normalize event",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [900, 760]
+      "position": [
+        912,
+        768
+      ]
     },
     {
       "parameters": {
@@ -172,7 +190,10 @@
       "name": "Route by event type",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [1160, 760]
+      "position": [
+        1168,
+        768
+      ]
     },
     {
       "parameters": {
@@ -183,9 +204,18 @@
         "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
-            { "name": "event", "value": "={{ $json.eventType }}" },
-            { "name": "summary", "value": "={{ $json.summary }}" },
-            { "name": "receivedAt", "value": "={{ $json.receivedAt }}" }
+            {
+              "name": "event",
+              "value": "={{ $json.eventType }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.summary }}"
+            },
+            {
+              "name": "receivedAt",
+              "value": "={{ $json.receivedAt }}"
+            }
           ]
         },
         "options": {}
@@ -194,7 +224,10 @@
       "name": "Forward: created event",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1500, 600]
+      "position": [
+        1504,
+        608
+      ]
     },
     {
       "parameters": {
@@ -205,9 +238,18 @@
         "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
-            { "name": "event", "value": "={{ $json.eventType }}" },
-            { "name": "summary", "value": "={{ $json.summary }}" },
-            { "name": "receivedAt", "value": "={{ $json.receivedAt }}" }
+            {
+              "name": "event",
+              "value": "={{ $json.eventType }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.summary }}"
+            },
+            {
+              "name": "receivedAt",
+              "value": "={{ $json.receivedAt }}"
+            }
           ]
         },
         "options": {}
@@ -216,7 +258,10 @@
       "name": "Forward: deleted event",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1500, 780]
+      "position": [
+        1504,
+        784
+      ]
     },
     {
       "parameters": {},
@@ -224,21 +269,58 @@
       "name": "Ignore other events",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1500, 960]
+      "position": [
+        1504,
+        960
+      ]
     }
   ],
   "connections": {
     "Webhook Relay Trigger": {
-      "main": [[{ "node": "Normalize event", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normalize event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normalize event": {
-      "main": [[{ "node": "Route by event type", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Route by event type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Route by event type": {
       "main": [
-        [{ "node": "Forward: created event", "type": "main", "index": 0 }],
-        [{ "node": "Forward: deleted event", "type": "main", "index": 0 }],
-        [{ "node": "Ignore other events", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Forward: created event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Forward: deleted event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore other events",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
